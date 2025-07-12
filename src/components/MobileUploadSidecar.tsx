@@ -29,13 +29,24 @@ export const MobileUploadSidecar = ({
           width: 200,
           margin: 2,
           color: {
-            dark: 'hsl(215, 85%, 25%)', // ink color
+            dark: '#1e3a8a', // Dark blue in hex
             light: '#FFFFFF'
           }
         });
         setQrCodeUrl(qrUrl);
       } catch (error) {
         console.error('Error generating QR code:', error);
+        // Fallback: try generating without custom colors
+        try {
+          const uploadUrl = `${window.location.origin}/mobile-upload?session=${sessionId}&sample=${encodeURIComponent(sampleText)}`;
+          const qrUrl = await QRCode.toDataURL(uploadUrl, {
+            width: 200,
+            margin: 2
+          });
+          setQrCodeUrl(qrUrl);
+        } catch (fallbackError) {
+          console.error('Fallback QR generation also failed:', fallbackError);
+        }
       }
     };
 
@@ -76,13 +87,24 @@ export const MobileUploadSidecar = ({
           width: 200,
           margin: 2,
           color: {
-            dark: 'hsl(215, 85%, 25%)',
+            dark: '#1e3a8a', // Dark blue in hex
             light: '#FFFFFF'
           }
         });
         setQrCodeUrl(qrUrl);
       } catch (error) {
         console.error('Error regenerating QR code:', error);
+        // Fallback without custom colors
+        try {
+          const uploadUrl = `${window.location.origin}/mobile-upload?session=${newSessionId}&sample=${encodeURIComponent(sampleText)}`;
+          const qrUrl = await QRCode.toDataURL(uploadUrl, {
+            width: 200,
+            margin: 2
+          });
+          setQrCodeUrl(qrUrl);
+        } catch (fallbackError) {
+          console.error('Fallback QR regeneration also failed:', fallbackError);
+        }
       }
     };
     generateQR();
