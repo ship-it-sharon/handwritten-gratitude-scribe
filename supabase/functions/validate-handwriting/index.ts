@@ -27,6 +27,8 @@ serve(async (req) => {
       );
     }
 
+    console.log('Making OpenAI API request for validation...');
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -42,7 +44,7 @@ serve(async (req) => {
             1. Is this clearly handwritten text (not typed or printed)?
             2. Does the handwritten text match the expected text exactly?
             
-            Return a JSON response with:
+            Return ONLY a valid JSON response with:
             - isValid: true if both conditions are met
             - isHandwriting: true if it's handwritten
             - textMatches: true if the text matches exactly
@@ -71,12 +73,19 @@ serve(async (req) => {
       }),
     });
 
+    console.log('OpenAI response status:', response.status);
+
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenAI API error:', response.status, response.statusText, errorText);
       throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
+    console.log('OpenAI response data:', JSON.stringify(data, null, 2));
+    
     const content = data.choices[0].message.content;
+    console.log('OpenAI content response:', content);
     
     try {
       // Parse the JSON response from OpenAI
