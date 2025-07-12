@@ -180,12 +180,20 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
     // Validate file type
     if (!file.type.startsWith('image/')) {
       toast.error("Please select an image file");
+      // Reset file input to allow selecting the same file again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       return;
     }
 
     // Validate file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
       toast.error("Image size should be less than 10MB");
+      // Reset file input to allow selecting the same file again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       return;
     }
 
@@ -198,6 +206,11 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
       if (isValid) {
         setUploadedImage(result);
         toast.success("Handwriting sample validated successfully!");
+      } else {
+        // Reset file input to allow selecting the same file again after validation failure
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
       }
     };
     reader.readAsDataURL(file);
