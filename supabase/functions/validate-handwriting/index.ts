@@ -54,7 +54,8 @@ serve(async (req) => {
             }
             
             Set isValid to true only if both isHandwriting and textMatches are true.
-            Be strict about exact text matching - even small differences should result in textMatches: false.
+            For text matching, ignore case differences and minor punctuation variations.
+            Focus on content accuracy rather than exact capitalization or punctuation.
             Do not include any text before or after the JSON.`
           },
           {
