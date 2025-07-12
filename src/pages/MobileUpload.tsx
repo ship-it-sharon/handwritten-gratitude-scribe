@@ -74,13 +74,15 @@ const MobileUpload = () => {
     setIsUploading(true);
     
     try {
-      // Store in Supabase database
+      // Store in Supabase database using UPSERT to handle duplicate session IDs
       const { data, error } = await supabase
         .from('mobile_uploads')
-        .insert({
+        .upsert({
           session_id: sessionId,
           image_data: uploadedImage,
           sample_text: sampleText
+        }, {
+          onConflict: 'session_id'
         })
         .select()
         .single();
