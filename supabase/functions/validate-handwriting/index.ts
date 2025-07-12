@@ -97,6 +97,19 @@ serve(async (req) => {
       // Parse the JSON response from OpenAI
       const validation = JSON.parse(content);
       
+      // Additional client-side validation for text matching with normalization
+      if (validation.extractedText && expectedText) {
+        const normalizeText = (text: string) => text.toLowerCase().replace(/[^\w\s]/g, '').trim();
+        const normalizedExpected = normalizeText(expectedText);
+        const normalizedExtracted = normalizeText(validation.extractedText);
+        
+        // Override textMatches if normalized texts are equal
+        if (normalizedExpected === normalizedExtracted) {
+          validation.textMatches = true;
+          validation.isValid = validation.isHandwriting && validation.textMatches;
+        }
+      }
+      
       return new Response(JSON.stringify(validation), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
