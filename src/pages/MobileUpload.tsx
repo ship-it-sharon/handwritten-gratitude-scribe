@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, Upload, Check, ArrowLeft } from "lucide-react";
+import { Camera, Upload, Check, ArrowLeft, RotateCcw } from "lucide-react";
 import { useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -11,13 +11,67 @@ const MobileUpload = () => {
   const { toast } = useToast();
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const sessionId = searchParams.get('session') || '';
   const sampleText = searchParams.get('sample') || '';
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const validateHandwriting = async (imageData: string) => {
+    setIsValidating(true);
+    try {
+      const response = await fetch(`https://lkqjlibxmsnjqaifipes.supabase.co/functions/v1/validate-handwriting`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxrcWpsaWJ4bXNuanFhaWZpcGVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyOTgyNzQsImV4cCI6MjA2Nzg3NDI3NH0.mpltb2Pc2H2vQNAuYQntJv462kFvyHG6yxe5Yt-pdto`
+        },
+        body: JSON.stringify({
+          imageData,
+          expectedText: sampleText
+        })
+      });
+
+      const validation = await response.json();
+      
+      if (!validation.isValid) {
+        let errorMessage = "This doesn't appear to be a valid handwriting sample. ";
+        
+        if (!validation.isHandwriting) {
+          errorMessage += "Please write the text by hand rather than typing or printing it. ";
+        }
+        
+        if (!validation.textMatches) {
+          errorMessage += `The text doesn't match exactly. Expected: "${sampleText}"`;
+          if (validation.extractedText) {
+            errorMessage += ` but found: "${validation.extractedText}"`;
+          }
+        }
+        
+        toast({
+          title: "Validation Failed",
+          description: errorMessage,
+          variant: "destructive"
+        });
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Validation error:', error);
+      toast({
+        title: "Validation Error",
+        description: "Unable to validate the image. Please try again.",
+        variant: "destructive"
+      });
+      return false;
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -42,9 +96,18 @@ const MobileUpload = () => {
     }
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const result = e.target?.result as string;
-      setUploadedImage(result);
+      
+      // Validate the handwriting
+      const isValid = await validateHandwriting(result);
+      if (isValid) {
+        setUploadedImage(result);
+        toast({
+          title: "Photo validated!",
+          description: "Your handwriting sample looks good"
+        });
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -192,6 +255,7 @@ const MobileUpload = () => {
                   variant="elegant"
                   size="lg"
                   onClick={triggerCamera}
+                  disabled={isValidating}
                   className="h-16 text-lg"
                 >
                   <Camera className="w-6 h-6" />
@@ -202,12 +266,19 @@ const MobileUpload = () => {
                   variant="warm"
                   size="lg"
                   onClick={triggerFileUpload}
+                  disabled={isValidating}
                   className="h-16 text-lg"
                 >
                   <Upload className="w-6 h-6" />
                   Choose from Gallery
                 </Button>
               </div>
+
+              {isValidating && (
+                <div className="text-center text-muted-foreground">
+                  🔍 Validating your handwriting sample...
+                </div>
+              )}
 
               <div className="bg-muted/30 p-4 rounded-lg text-sm text-muted-foreground space-y-2">
                 <p>📝 <strong>Tips for best results:</strong></p>
@@ -216,12 +287,13 @@ const MobileUpload = () => {
                   <li>Use good lighting and avoid shadows</li>
                   <li>Make sure the text fills most of the frame</li>
                   <li>Keep the paper flat and avoid glare</li>
+                  <li>Write the exact text shown above</li>
                 </ul>
               </div>
             </div>
           ) : (
             <div className="space-y-4">
-              <h3 className="font-elegant text-lg text-ink text-center">Review Your Photo</h3>
+              <h3 className="font-elegant text-lg text-ink text-center">✅ Photo Validated</h3>
               
               <div className="text-center">
                 <img 
@@ -237,6 +309,7 @@ const MobileUpload = () => {
                   onClick={removeImage}
                   className="flex-1"
                 >
+                  <RotateCcw className="w-4 h-4" />
                   Retake Photo
                 </Button>
                 <Button 

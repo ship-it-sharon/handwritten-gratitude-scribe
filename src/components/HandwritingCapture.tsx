@@ -28,6 +28,7 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [mobileImages, setMobileImages] = useState<Map<number, string>>(new Map());
   const [completedSamples, setCompletedSamples] = useState<Set<number>>(new Set());
+  const [isValidating, setIsValidating] = useState(false);
   const [sessionId] = useState(() => `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -123,7 +124,52 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
     setHasDrawn(false);
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const validateHandwriting = async (imageData: string) => {
+    setIsValidating(true);
+    try {
+      const response = await fetch(`https://lkqjlibxmsnjqaifipes.supabase.co/functions/v1/validate-handwriting`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxrcWpsaWJ4bXNuanFhaWZpcGVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyOTgyNzQsImV4cCI6MjA2Nzg3NDI3NH0.mpltb2Pc2H2vQNAuYQntJv462kFvyHG6yxe5Yt-pdto`
+        },
+        body: JSON.stringify({
+          imageData,
+          expectedText: sampleTexts[currentSample]
+        })
+      });
+
+      const validation = await response.json();
+      
+      if (!validation.isValid) {
+        let errorMessage = "This doesn't appear to be a valid handwriting sample. ";
+        
+        if (!validation.isHandwriting) {
+          errorMessage += "Please write the text by hand rather than typing or printing it. ";
+        }
+        
+        if (!validation.textMatches) {
+          errorMessage += `The text doesn't match exactly. Expected: "${sampleTexts[currentSample]}"`;
+          if (validation.extractedText) {
+            errorMessage += ` but found: "${validation.extractedText}"`;
+          }
+        }
+        
+        toast.error(errorMessage);
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Validation error:', error);
+      toast.error("Unable to validate the image. Please try again.");
+      return false;
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -140,10 +186,15 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
     }
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const result = e.target?.result as string;
-      setUploadedImage(result);
-      toast.success("Image uploaded successfully!");
+      
+      // Validate the handwriting
+      const isValid = await validateHandwriting(result);
+      if (isValid) {
+        setUploadedImage(result);
+        toast.success("Handwriting sample validated successfully!");
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -159,11 +210,15 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
     }
   };
 
-  const handleMobileImageReceived = (imageUrl: string) => {
-    const newMobileImages = new Map(mobileImages);
-    newMobileImages.set(currentSample, imageUrl);
-    setMobileImages(newMobileImages);
-    toast.success("Photo received from mobile!");
+  const handleMobileImageReceived = async (imageUrl: string) => {
+    // Validate the mobile image
+    const isValid = await validateHandwriting(imageUrl);
+    if (isValid) {
+      const newMobileImages = new Map(mobileImages);
+      newMobileImages.set(currentSample, imageUrl);
+      setMobileImages(newMobileImages);
+      toast.success("Photo received and validated!");
+    }
   };
 
   const completeSample = () => {
@@ -353,12 +408,43 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
               </TabsContent>
 
               <TabsContent value="mobile" className="mt-6">
-                <MobileUploadSidecar
-                  sessionId={sessionId}
-                  sampleText={sampleTexts[currentSample]}
-                  onImageReceived={handleMobileImageReceived}
-                  completed={mobileImages.has(currentSample)}
-                />
+                <div className="space-y-4">
+                  {mobileImages.has(currentSample) ? (
+                    <Card className="p-6 space-y-4">
+                      <h3 className="font-elegant text-lg text-ink text-center">Mobile Photo Received</h3>
+                      <div className="text-center">
+                        <img 
+                          src={mobileImages.get(currentSample)} 
+                          alt="Mobile handwriting sample"
+                          className="max-h-48 mx-auto rounded-lg border border-border"
+                        />
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          const newMobileImages = new Map(mobileImages);
+                          newMobileImages.delete(currentSample);
+                          setMobileImages(newMobileImages);
+                        }}
+                        className="w-full"
+                      >
+                        Take New Photo
+                      </Button>
+                    </Card>
+                  ) : (
+                    <MobileUploadSidecar
+                      sessionId={sessionId}
+                      sampleText={sampleTexts[currentSample]}
+                      onImageReceived={handleMobileImageReceived}
+                      completed={false}
+                    />
+                  )}
+                  {isValidating && (
+                    <div className="text-center text-sm text-muted-foreground">
+                      🔍 Validating handwriting sample...
+                    </div>
+                  )}
+                </div>
               </TabsContent>
             </Tabs>
           </div>
