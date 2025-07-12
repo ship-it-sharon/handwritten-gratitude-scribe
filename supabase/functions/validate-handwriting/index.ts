@@ -44,21 +44,25 @@ serve(async (req) => {
             1. Is this clearly handwritten text (not typed or printed)?
             2. Does the handwritten text match the expected text exactly?
             
-            Return ONLY a valid JSON response with:
-            - isValid: true if both conditions are met
-            - isHandwriting: true if it's handwritten
-            - textMatches: true if the text matches exactly
-            - extractedText: what text you can read from the image
-            - feedback: helpful message for the user
+            You must respond ONLY with valid JSON in this exact format:
+            {
+              "isValid": true/false,
+              "isHandwriting": true/false,
+              "textMatches": true/false,
+              "extractedText": "what you read from the image",
+              "feedback": "helpful message for the user"
+            }
             
-            Be strict about exact text matching - even small differences should result in textMatches: false.`
+            Set isValid to true only if both isHandwriting and textMatches are true.
+            Be strict about exact text matching - even small differences should result in textMatches: false.
+            Do not include any text before or after the JSON.`
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `Expected text: "${expectedText}"\n\nPlease validate this handwriting sample.`
+                text: `Expected text: "${expectedText}"\n\nPlease validate this handwriting sample and respond with only JSON.`
               },
               {
                 type: 'image_url',
@@ -69,7 +73,8 @@ serve(async (req) => {
             ]
           }
         ],
-        max_tokens: 500
+        max_tokens: 300,
+        temperature: 0
       }),
     });
 
