@@ -2,7 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { RotateCcw, Check, ChevronRight } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
+import { RotateCcw, Check, ChevronRight, Upload, Camera, PenTool, Image } from "lucide-react";
+import { toast } from "sonner";
 
 interface HandwritingCaptureProps {
   onNext: () => void;
@@ -18,12 +21,18 @@ const sampleTexts = [
 
 export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
   const [currentSample, setCurrentSample] = useState(0);
+  const [captureMethod, setCaptureMethod] = useState<'draw' | 'upload'>('draw');
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [completedSamples, setCompletedSamples] = useState<Set<number>>(new Set());
+  
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const progress = ((currentSample + (hasDrawn ? 1 : 0)) / sampleTexts.length) * 100;
+  const progress = (completedSamples.size / sampleTexts.length) * 100;
+  const currentSampleCompleted = completedSamples.has(currentSample);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -42,6 +51,13 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
     
     contextRef.current = context;
   }, [currentSample]);
+
+  // Reset states when switching methods or samples
+  useEffect(() => {
+    setHasDrawn(false);
+    setUploadedImage(null);
+    clearCanvas();
+  }, [captureMethod, currentSample]);
 
   const startDrawing = (event: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -104,29 +120,78 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
     setHasDrawn(false);
   };
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error("Please select an image file");
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image size should be less than 10MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      setUploadedImage(result);
+      toast.success("Image uploaded successfully!");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  const removeUploadedImage = () => {
+    setUploadedImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const completeSample = () => {
+    const newCompleted = new Set(completedSamples);
+    newCompleted.add(currentSample);
+    setCompletedSamples(newCompleted);
+    
+    toast.success(`Sample ${currentSample + 1} completed!`);
+    
+    if (currentSample < sampleTexts.length - 1) {
+      setCurrentSample(currentSample + 1);
+    }
+  };
+
   const nextSample = () => {
     if (currentSample < sampleTexts.length - 1) {
       setCurrentSample(currentSample + 1);
-      setHasDrawn(false);
-      clearCanvas();
     } else {
       onNext();
     }
   };
 
+  const canCompleteSample = captureMethod === 'draw' ? hasDrawn : uploadedImage !== null;
+  const canProceed = completedSamples.size === sampleTexts.length;
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-4xl p-8 shadow-elegant">
+      <Card className="w-full max-w-5xl p-8 shadow-elegant">
         <div className="space-y-6">
           {/* Header */}
           <div className="text-center space-y-4">
             <h1 className="text-3xl font-elegant text-ink">Capture Your Handwriting</h1>
             <p className="text-muted-foreground">
-              Write the sample text below in your natural handwriting style
+              Create samples by drawing on screen or uploading photos of your handwriting
             </p>
             <Progress value={progress} className="w-full max-w-md mx-auto" />
             <p className="text-sm text-muted-foreground">
-              Sample {currentSample + 1} of {sampleTexts.length}
+              Sample {currentSample + 1} of {sampleTexts.length} • {completedSamples.size} completed
             </p>
           </div>
 
@@ -136,58 +201,166 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
               <p className="text-lg font-elegant text-ink">
                 "{sampleTexts[currentSample]}"
               </p>
+              {currentSampleCompleted && (
+                <div className="mt-2 flex items-center justify-center gap-2 text-green-600">
+                  <Check className="w-4 h-4" />
+                  <span className="text-sm">Completed</span>
+                </div>
+              )}
             </Card>
           </div>
 
-          {/* Drawing Canvas */}
-          <div className="space-y-4">
-            <Card className="p-4 bg-paper">
-              <canvas
-                ref={canvasRef}
-                width={800}
-                height={200}
-                className="w-full h-48 border border-border rounded cursor-crosshair bg-white"
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
-                onTouchStart={startDrawing}
-                onTouchMove={draw}
-                onTouchEnd={stopDrawing}
-              />
-            </Card>
-            
-            <div className="flex justify-center gap-4">
-              <Button variant="outline" onClick={clearCanvas} disabled={!hasDrawn}>
-                <RotateCcw className="w-4 h-4" />
-                Clear
-              </Button>
+          {/* Method Selection */}
+          <div className="flex justify-center">
+            <Tabs value={captureMethod} onValueChange={(value) => setCaptureMethod(value as 'draw' | 'upload')}>
+              <TabsList className="grid w-full grid-cols-2 max-w-md">
+                <TabsTrigger value="draw" className="flex items-center gap-2">
+                  <PenTool className="w-4 h-4" />
+                  Draw on Screen
+                </TabsTrigger>
+                <TabsTrigger value="upload" className="flex items-center gap-2">
+                  <Camera className="w-4 h-4" />
+                  Upload Photo
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="draw" className="mt-6">
+                <div className="space-y-4">
+                  <Card className="p-4 bg-paper">
+                    <canvas
+                      ref={canvasRef}
+                      width={800}
+                      height={200}
+                      className="w-full h-48 border border-border rounded cursor-crosshair bg-white"
+                      onMouseDown={startDrawing}
+                      onMouseMove={draw}
+                      onMouseUp={stopDrawing}
+                      onMouseLeave={stopDrawing}
+                      onTouchStart={startDrawing}
+                      onTouchMove={draw}
+                      onTouchEnd={stopDrawing}
+                    />
+                  </Card>
+                  
+                  <div className="flex justify-center gap-4">
+                    <Button variant="outline" onClick={clearCanvas} disabled={!hasDrawn}>
+                      <RotateCcw className="w-4 h-4" />
+                      Clear
+                    </Button>
+                  </div>
+
+                  <div className="text-center text-sm text-muted-foreground space-y-1">
+                    <p>✍️ Write naturally in your own handwriting style</p>
+                    <p>📱 Use your finger on mobile or a stylus for best results</p>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="upload" className="mt-6">
+                <div className="space-y-4">
+                  <Card className="p-8 bg-paper">
+                    {!uploadedImage ? (
+                      <div 
+                        onClick={triggerFileUpload}
+                        className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
+                      >
+                        <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                        <h3 className="font-medium text-ink mb-2">Upload Handwriting Sample</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Take a photo of the sample text written in your handwriting
+                        </p>
+                        <Button variant="outline">
+                          <Image className="w-4 h-4" />
+                          Choose Image
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-center space-y-4">
+                        <img 
+                          src={uploadedImage} 
+                          alt="Uploaded handwriting sample"
+                          className="max-h-48 mx-auto rounded-lg border border-border"
+                        />
+                        <Button variant="outline" onClick={removeUploadedImage}>
+                          <RotateCcw className="w-4 h-4" />
+                          Replace Image
+                        </Button>
+                      </div>
+                    )}
+                  </Card>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+
+                  <div className="text-center text-sm text-muted-foreground space-y-1">
+                    <p>📸 Take a clear photo of your handwritten sample</p>
+                    <p>💡 Use good lighting and avoid shadows for best results</p>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-center gap-4">
+            {!currentSampleCompleted && (
               <Button 
                 variant="elegant" 
-                onClick={nextSample} 
-                disabled={!hasDrawn}
+                onClick={completeSample}
+                disabled={!canCompleteSample}
                 size="lg"
               >
-                {currentSample < sampleTexts.length - 1 ? (
-                  <>
-                    Next Sample
-                    <ChevronRight className="w-4 h-4" />
-                  </>
-                ) : (
-                  <>
-                    Complete Setup
-                    <Check className="w-4 h-4" />
-                  </>
-                )}
+                <Check className="w-4 h-4" />
+                Complete Sample
               </Button>
-            </div>
+            )}
+
+            {currentSampleCompleted && !canProceed && (
+              <Button 
+                variant="warm" 
+                onClick={nextSample}
+                size="lg"
+              >
+                Next Sample
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            )}
+
+            {canProceed && (
+              <Button 
+                variant="elegant" 
+                onClick={onNext}
+                size="lg"
+              >
+                Complete Setup
+                <Check className="w-4 h-4" />
+              </Button>
+            )}
           </div>
 
-          {/* Instructions */}
-          <div className="text-center text-sm text-muted-foreground space-y-2">
-            <p>✍️ Write naturally in your own handwriting style</p>
-            <p>📱 Use your finger on mobile or a stylus for best results</p>
-          </div>
+          {/* Sample Navigation */}
+          {sampleTexts.length > 1 && (
+            <div className="flex justify-center space-x-2">
+              {sampleTexts.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentSample(index)}
+                  className={`w-3 h-3 rounded-full transition-colors ${
+                    index === currentSample 
+                      ? 'bg-primary' 
+                      : completedSamples.has(index) 
+                        ? 'bg-green-500' 
+                        : 'bg-muted'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </Card>
     </div>
