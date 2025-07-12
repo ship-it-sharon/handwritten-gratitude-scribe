@@ -4,8 +4,9 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
-import { RotateCcw, Check, ChevronRight, Upload, Camera, PenTool, Image } from "lucide-react";
+import { RotateCcw, Check, ChevronRight, Upload, Camera, PenTool, Image, Smartphone } from "lucide-react";
 import { toast } from "sonner";
+import { MobileUploadSidecar } from "./MobileUploadSidecar";
 
 interface HandwritingCaptureProps {
   onNext: () => void;
@@ -21,11 +22,13 @@ const sampleTexts = [
 
 export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
   const [currentSample, setCurrentSample] = useState(0);
-  const [captureMethod, setCaptureMethod] = useState<'draw' | 'upload'>('draw');
+  const [captureMethod, setCaptureMethod] = useState<'draw' | 'upload' | 'mobile'>('draw');
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [mobileImages, setMobileImages] = useState<Map<number, string>>(new Map());
   const [completedSamples, setCompletedSamples] = useState<Set<number>>(new Set());
+  const [sessionId] = useState(() => `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -156,6 +159,13 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
     }
   };
 
+  const handleMobileImageReceived = (imageUrl: string) => {
+    const newMobileImages = new Map(mobileImages);
+    newMobileImages.set(currentSample, imageUrl);
+    setMobileImages(newMobileImages);
+    toast.success("Photo received from mobile!");
+  };
+
   const completeSample = () => {
     const newCompleted = new Set(completedSamples);
     newCompleted.add(currentSample);
@@ -176,7 +186,19 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
     }
   };
 
-  const canCompleteSample = captureMethod === 'draw' ? hasDrawn : uploadedImage !== null;
+  const canCompleteSample = () => {
+    switch (captureMethod) {
+      case 'draw':
+        return hasDrawn;
+      case 'upload':
+        return uploadedImage !== null;
+      case 'mobile':
+        return mobileImages.has(currentSample);
+      default:
+        return false;
+    }
+  };
+
   const canProceed = completedSamples.size === sampleTexts.length;
 
   return (
@@ -212,15 +234,19 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
 
           {/* Method Selection */}
           <div className="flex justify-center">
-            <Tabs value={captureMethod} onValueChange={(value) => setCaptureMethod(value as 'draw' | 'upload')}>
-              <TabsList className="grid w-full grid-cols-2 max-w-md">
+            <Tabs value={captureMethod} onValueChange={(value) => setCaptureMethod(value as 'draw' | 'upload' | 'mobile')}>
+              <TabsList className="grid w-full grid-cols-3 max-w-lg">
                 <TabsTrigger value="draw" className="flex items-center gap-2">
                   <PenTool className="w-4 h-4" />
-                  Draw on Screen
+                  Draw
                 </TabsTrigger>
                 <TabsTrigger value="upload" className="flex items-center gap-2">
                   <Camera className="w-4 h-4" />
-                  Upload Photo
+                  Upload
+                </TabsTrigger>
+                <TabsTrigger value="mobile" className="flex items-center gap-2">
+                  <Smartphone className="w-4 h-4" />
+                  Phone
                 </TabsTrigger>
               </TabsList>
 
@@ -303,6 +329,15 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
                   </div>
                 </div>
               </TabsContent>
+
+              <TabsContent value="mobile" className="mt-6">
+                <MobileUploadSidecar
+                  sessionId={sessionId}
+                  sampleText={sampleTexts[currentSample]}
+                  onImageReceived={handleMobileImageReceived}
+                  completed={mobileImages.has(currentSample)}
+                />
+              </TabsContent>
             </Tabs>
           </div>
 
@@ -312,7 +347,7 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
               <Button 
                 variant="elegant" 
                 onClick={completeSample}
-                disabled={!canCompleteSample}
+                disabled={!canCompleteSample()}
                 size="lg"
               >
                 <Check className="w-4 h-4" />
