@@ -62,18 +62,25 @@ const MobileUpload = () => {
   const submitUpload = async () => {
     if (!uploadedImage || !sessionId) return;
 
+    console.log('Submitting upload for session:', sessionId);
     setIsUploading(true);
     
     try {
-      // In a real app, this would upload to cloud storage
-      // For now, we'll store in localStorage to simulate the flow
+      // Store in localStorage with session ID
       const uploadData = {
         sessionId,
         imageUrl: uploadedImage,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        sampleText
       };
       
-      localStorage.setItem(`mobile-upload-${sessionId}`, JSON.stringify(uploadData));
+      const storageKey = `mobile-upload-${sessionId}`;
+      localStorage.setItem(storageKey, JSON.stringify(uploadData));
+      
+      console.log('Stored mobile upload data:', storageKey, uploadData);
+      
+      // Also store a backup with a simpler key for fallback
+      localStorage.setItem('latest-mobile-upload', JSON.stringify(uploadData));
       
       setIsComplete(true);
       toast({
@@ -81,6 +88,7 @@ const MobileUpload = () => {
         description: "Your handwriting sample has been sent to your computer"
       });
     } catch (error) {
+      console.error('Error submitting upload:', error);
       toast({
         title: "Upload failed",
         description: "Please try again",

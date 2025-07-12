@@ -59,21 +59,44 @@ export const MobileUploadSidecar = ({
 
     const pollForImage = async () => {
       try {
-        // Simulate checking for uploaded images
-        // In a real app, this would check a database or storage
+        console.log('Polling for mobile upload with session:', sessionId);
+        
+        // Check localStorage for the specific session
         const stored = localStorage.getItem(`mobile-upload-${sessionId}`);
+        console.log('Found stored data:', stored ? 'Yes' : 'No');
+        
         if (stored) {
           const data = JSON.parse(stored);
+          console.log('Mobile image received:', data);
           onImageReceived(data.imageUrl);
           setIsPolling(false);
+          // Clean up the stored data
           localStorage.removeItem(`mobile-upload-${sessionId}`);
+        }
+        
+        // Also check for any mobile uploads (fallback for session ID issues)
+        const keys = Object.keys(localStorage);
+        const mobileUploadKeys = keys.filter(key => key.startsWith('mobile-upload-'));
+        console.log('All mobile upload keys:', mobileUploadKeys);
+        
+        if (mobileUploadKeys.length > 0 && !stored) {
+          // Use the most recent upload if session doesn't match
+          const latestKey = mobileUploadKeys[mobileUploadKeys.length - 1];
+          const latestData = localStorage.getItem(latestKey);
+          if (latestData) {
+            const data = JSON.parse(latestData);
+            console.log('Using latest mobile upload:', data);
+            onImageReceived(data.imageUrl);
+            setIsPolling(false);
+            localStorage.removeItem(latestKey);
+          }
         }
       } catch (error) {
         console.error('Error polling for image:', error);
       }
     };
 
-    const interval = setInterval(pollForImage, 2000);
+    const interval = setInterval(pollForImage, 1000); // Poll every second
     return () => clearInterval(interval);
   }, [isPolling, sessionId, onImageReceived, completed]);
 
@@ -164,6 +187,17 @@ export const MobileUploadSidecar = ({
           <p>✍️ <strong>Step 2:</strong> Write the sample text on paper</p>
           <p>📸 <strong>Step 3:</strong> Take a clear photo and upload</p>
         </div>
+
+        {/* Debug Information */}
+        <details className="bg-muted/10 p-2 rounded text-xs">
+          <summary className="cursor-pointer text-muted-foreground">Debug Info</summary>
+          <div className="mt-2 space-y-1 text-muted-foreground">
+            <p>Session ID: {sessionId}</p>
+            <p>Polling: {isPolling ? 'Active' : 'Inactive'}</p>
+            <p>Completed: {completed ? 'Yes' : 'No'}</p>
+            <p>Storage Key: mobile-upload-{sessionId}</p>
+          </div>
+        </details>
       </div>
     </Card>
   );
