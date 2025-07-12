@@ -4,9 +4,10 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
-import { RotateCcw, Check, ChevronRight, Upload, Camera, PenTool, Image, Smartphone, Loader2, Brain, Sparkles } from "lucide-react";
+import { RotateCcw, Check, ChevronRight, Upload, Camera, PenTool, Image, Smartphone, Loader2, Brain, Sparkles, RefreshCw, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { MobileUploadSidecar } from "./MobileUploadSidecar";
+import { analyzeHandwritingSamples, generateHandwritingStyle } from "@/lib/handwriting";
 
 interface HandwritingCaptureProps {
   onNext: (samples: (string | HTMLCanvasElement)[]) => void;
@@ -30,6 +31,9 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
   const [completedSamples, setCompletedSamples] = useState<Set<number>>(new Set());
   const [isValidating, setIsValidating] = useState(false);
   const [sessionId] = useState(() => `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  const [showPreview, setShowPreview] = useState(false);
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  const [previewSvg, setPreviewSvg] = useState<string | null>(null);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -241,6 +245,48 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
     }
   };
 
+  const generatePreviewSample = async () => {
+    setIsGeneratingPreview(true);
+    try {
+      // Collect all samples
+      const allSamples: string[] = [];
+      
+      // Convert canvas to base64 if available
+      if (canvasRef.current && hasDrawn) {
+        const canvasData = canvasRef.current.toDataURL();
+        allSamples.push(canvasData);
+      }
+      
+      // Add uploaded image
+      if (uploadedImage) {
+        allSamples.push(uploadedImage);
+      }
+      
+      // Add mobile images
+      mobileImages.forEach((imageUrl) => {
+        allSamples.push(imageUrl);
+      });
+
+      // Analyze handwriting style
+      const handwritingStyle = analyzeHandwritingSamples(allSamples);
+      
+      // Generate preview message
+      const previewMessage = "Hey there! Here is our best attempt at matching your handwriting. How does this look to you?";
+      
+      // Generate handwriting SVG
+      const svg = await generateHandwritingStyle(previewMessage, handwritingStyle, allSamples);
+      setPreviewSvg(svg);
+      setShowPreview(true);
+      
+      toast.success("✨ Handwriting preview generated!");
+    } catch (error) {
+      console.error('Error generating preview:', error);
+      toast.error("Failed to generate handwriting preview. Please try again.");
+    } finally {
+      setIsGeneratingPreview(false);
+    }
+  };
+
   const finishCapture = () => {
     // Collect all samples (canvas drawings, uploaded images, mobile images)
     const allSamples: (string | HTMLCanvasElement)[] = [];
@@ -263,6 +309,13 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
     onNext(allSamples);
   };
 
+  const collectMoreSamples = () => {
+    setShowPreview(false);
+    setPreviewSvg(null);
+    // Reset to continue collecting more samples
+    setCurrentSample(0);
+  };
+
   const canCompleteSample = () => {
     switch (captureMethod) {
       case 'draw':
@@ -277,6 +330,90 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
   };
 
   const canProceed = completedSamples.size === sampleTexts.length;
+
+  // Show preview screen if all samples completed and preview requested
+  if (showPreview) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="w-full max-w-4xl p-8 shadow-elegant">
+          <div className="text-center space-y-8">
+            <div className="space-y-4">
+              <h1 className="text-3xl font-elegant text-ink">✨ Your Handwriting Preview</h1>
+              <p className="text-muted-foreground">
+                We've analyzed your samples and generated this preview in your handwriting style
+              </p>
+            </div>
+
+            {isGeneratingPreview ? (
+              <div className="space-y-6 py-12">
+                <div className="relative">
+                  <Loader2 className="w-20 h-20 mx-auto text-primary animate-spin" />
+                  <Sparkles className="w-8 h-8 absolute top-6 left-1/2 transform -translate-x-1/2 text-primary-light animate-pulse" />
+                </div>
+                <div className="space-y-3">
+                  <h3 className="font-elegant text-2xl text-ink">🎨 Creating your handwriting magic...</h3>
+                  <div className="space-y-2 text-muted-foreground">
+                    <p className="flex items-center justify-center gap-2">
+                      <Brain className="w-5 h-5 animate-pulse" />
+                      Analyzing your unique writing style
+                    </p>
+                    <p>✍️ Capturing the essence of your penmanship</p>
+                    <p>🌟 Generating your personalized message</p>
+                  </div>
+                </div>
+                <div className="text-sm text-muted-foreground italic">
+                  This might take a moment to get it just right...
+                </div>
+              </div>
+            ) : previewSvg ? (
+              <div className="space-y-6">
+                <Card className="p-8 bg-paper border-2 border-warm-accent/30">
+                  <div 
+                    className="handwriting-preview mx-auto"
+                    dangerouslySetInnerHTML={{ __html: previewSvg }}
+                    style={{ maxWidth: '100%', overflow: 'hidden' }}
+                  />
+                </Card>
+                
+                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                  <Button 
+                    variant="outline" 
+                    onClick={collectMoreSamples}
+                    size="lg"
+                    className="flex items-center gap-2"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Collect More Samples
+                  </Button>
+                  <Button 
+                    variant="elegant" 
+                    onClick={finishCapture}
+                    size="lg"
+                    className="flex items-center gap-2"
+                  >
+                    Perfect! Continue
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </div>
+                
+                <div className="text-center text-sm text-muted-foreground space-y-1">
+                  <p>💝 Love how it looks? Continue to create your thank you note!</p>
+                  <p>🔄 Want it even more accurate? Collect a few more handwriting samples!</p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center space-y-4">
+                <p className="text-muted-foreground">Something went wrong generating the preview.</p>
+                <Button onClick={collectMoreSamples} variant="outline">
+                  Try Again
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -512,11 +649,22 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
             {canProceed && (
               <Button 
                 variant="elegant" 
-                onClick={finishCapture}
+                onClick={generatePreviewSample}
+                disabled={isGeneratingPreview}
                 size="lg"
+                className="flex items-center gap-2"
               >
-                Complete Setup
-                <Check className="w-4 h-4" />
+                {isGeneratingPreview ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating Preview...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Generate Preview
+                  </>
+                )}
               </Button>
             )}
           </div>
