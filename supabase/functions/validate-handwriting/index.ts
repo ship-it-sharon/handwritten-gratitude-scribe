@@ -95,15 +95,21 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     } catch (parseError) {
-      // If OpenAI didn't return valid JSON, create a fallback response
-      console.error('Failed to parse OpenAI response:', content);
+      console.error('Failed to parse OpenAI response as JSON:', parseError);
+      console.error('Raw OpenAI content:', content);
+      
+      // Try to extract information from non-JSON response
+      const isHandwritingMention = content.toLowerCase().includes('handwrit');
+      const isHandwritten = isHandwritingMention && !content.toLowerCase().includes('not handwrit') && !content.toLowerCase().includes('no handwrit');
       
       return new Response(JSON.stringify({
         isValid: false,
-        isHandwriting: false,
+        isHandwriting: isHandwritten,
         textMatches: false,
         extractedText: '',
-        feedback: 'Unable to analyze the image properly. Please try again with a clearer photo.'
+        feedback: isHandwritten 
+          ? 'I can see this is handwriting, but I had trouble verifying if it matches the expected text. Please ensure your handwriting is clear and matches the prompt exactly.'
+          : 'Please make sure you\'re uploading a clear photo of handwritten text that matches the prompt.'
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
