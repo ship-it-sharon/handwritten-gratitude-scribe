@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Camera, Upload, Check, ArrowLeft } from "lucide-react";
 import { useSearchParams, Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 const MobileUpload = () => {
   const [searchParams] = useSearchParams();
@@ -69,58 +70,27 @@ const MobileUpload = () => {
     console.log('Session ID:', sessionId);
     console.log('Sample Text:', sampleText);
     console.log('Image size:', uploadedImage.length, 'characters');
-    console.log('LocalStorage available:', typeof Storage !== "undefined");
     
     setIsUploading(true);
     
     try {
-      // Test localStorage access first
-      try {
-        localStorage.setItem('test-key', 'test-value');
-        localStorage.removeItem('test-key');
-        console.log('localStorage test: PASSED');
-      } catch (storageError) {
-        console.error('localStorage test: FAILED', storageError);
-        throw new Error('localStorage not available');
+      // Store in Supabase database
+      const { data, error } = await supabase
+        .from('mobile_uploads')
+        .insert({
+          session_id: sessionId,
+          image_data: uploadedImage,
+          sample_text: sampleText
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase upload error:', error);
+        throw new Error(`Failed to upload: ${error.message}`);
       }
-      
-      // Store in localStorage with session ID
-      const uploadData = {
-        sessionId,
-        imageUrl: uploadedImage,
-        timestamp: Date.now(),
-        sampleText
-      };
-      
-      const storageKey = `mobile-upload-${sessionId}`;
-      console.log('Attempting to store with key:', storageKey);
-      
-      // Store the main data
-      localStorage.setItem(storageKey, JSON.stringify(uploadData));
-      console.log('✅ Successfully stored main upload data');
-      
-      // Store backup
-      localStorage.setItem('latest-mobile-upload', JSON.stringify(uploadData));
-      console.log('✅ Successfully stored backup upload data');
-      
-      // Verify storage
-      const verification = localStorage.getItem(storageKey);
-      if (verification) {
-        console.log('✅ Storage verification: SUCCESS');
-        console.log('Stored data size:', verification.length, 'characters');
-      } else {
-        console.error('❌ Storage verification: FAILED - data not found');
-        throw new Error('Failed to store data');
-      }
-      
-      // Trigger storage event manually for same-tab detection
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: storageKey,
-        newValue: JSON.stringify(uploadData),
-        oldValue: null,
-        url: window.location.href
-      }));
-      
+
+      console.log('✅ Successfully uploaded to Supabase:', data?.id);
       console.log('=== MOBILE UPLOAD SUCCESS ===');
       
       setIsComplete(true);

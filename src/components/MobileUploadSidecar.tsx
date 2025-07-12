@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Smartphone, RefreshCw, CheckCircle, Clock } from "lucide-react";
 import QRCode from "qrcode";
+import { supabase } from "@/integrations/supabase/client";
 
 interface MobileUploadSidecarProps {
   sessionId: string;
@@ -53,7 +54,7 @@ export const MobileUploadSidecar = ({
     generateQR();
   }, [sessionId, sampleText]);
 
-  // Poll for uploaded images and debug localStorage
+  // Poll for uploaded images from Supabase
   useEffect(() => {
     if (!isPolling || completed) return;
 
@@ -64,61 +65,31 @@ export const MobileUploadSidecar = ({
         console.log('Polling active:', isPolling);
         console.log('Completed:', completed);
         
-        // Debug: Show ALL localStorage contents
-        console.log('All localStorage keys:');
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          const value = localStorage.getItem(key!);
-          console.log(`  ${key}: ${value?.substring(0, 100)}...`);
-        }
-        
-        // Check localStorage for the specific session
-        const specificKey = `mobile-upload-${sessionId}`;
-        const stored = localStorage.getItem(specificKey);
-        console.log(`Checking key "${specificKey}":`, stored ? 'FOUND' : 'NOT FOUND');
-        
-        if (stored) {
-          const data = JSON.parse(stored);
-          console.log('Mobile image received:', data);
-          onImageReceived(data.imageUrl);
-          setIsPolling(false);
-          localStorage.removeItem(specificKey);
+        const { data, error } = await supabase
+          .from('mobile_uploads')
+          .select('*')
+          .eq('session_id', sessionId)
+          .single();
+
+        if (error) {
+          if (error.code !== 'PGRST116') { // Not found error is expected
+            console.error('Supabase polling error:', error);
+          }
+          console.log('No upload found yet');
           return;
         }
-        
-        // Check for latest upload (fallback)
-        const latestUpload = localStorage.getItem('latest-mobile-upload');
-        console.log('Latest mobile upload:', latestUpload ? 'FOUND' : 'NOT FOUND');
-        if (latestUpload) {
-          const data = JSON.parse(latestUpload);
-          console.log('Latest upload data:', data);
-          // Check if this upload is recent enough (within 1 minute)
-          const timeDiff = Date.now() - data.timestamp;
-          console.log('Time difference:', timeDiff, 'ms');
-          if (timeDiff < 60000) {
-            console.log('Using latest mobile upload');
-            onImageReceived(data.imageUrl);
-            setIsPolling(false);
-            localStorage.removeItem('latest-mobile-upload');
-            return;
-          }
-        }
-        
-        // Check for any mobile uploads (final fallback)
-        const keys = Object.keys(localStorage);
-        const mobileUploadKeys = keys.filter(key => key.startsWith('mobile-upload-'));
-        console.log('Mobile upload keys found:', mobileUploadKeys);
-        
-        if (mobileUploadKeys.length > 0) {
-          // Use the most recent upload
-          const latestKey = mobileUploadKeys[mobileUploadKeys.length - 1];
-          const latestData = localStorage.getItem(latestKey);
-          if (latestData) {
-            const data = JSON.parse(latestData);
-            console.log('Using fallback mobile upload:', data);
-            onImageReceived(data.imageUrl);
-            setIsPolling(false);
-            localStorage.removeItem(latestKey);
+
+        if (data && data.image_data) {
+          console.log('📸 Image found in Supabase! ID:', data.id);
+          onImageReceived(data.image_data);
+          setIsPolling(false);
+          
+          // Clean up the database record
+          try {
+            await supabase.from('mobile_uploads').delete().eq('id', data.id);
+            console.log('🧹 Cleaned up database record');
+          } catch (cleanupError) {
+            console.error('Failed to clean up database:', cleanupError);
           }
         }
         
@@ -128,20 +99,9 @@ export const MobileUploadSidecar = ({
       }
     };
 
-    // Listen for storage events from other windows/tabs
-    const handleStorageChange = (e: StorageEvent) => {
-      console.log('Storage event detected:', e.key, e.newValue ? 'ADDED' : 'REMOVED');
-      if (e.key?.startsWith('mobile-upload-') || e.key === 'latest-mobile-upload') {
-        console.log('Relevant storage change, polling immediately');
-        pollForImage();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    const interval = setInterval(pollForImage, 2000); // Poll every 2 seconds with debug
+    const interval = setInterval(pollForImage, 2000); // Poll every 2 seconds
     
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
       clearInterval(interval);
     };
   }, [isPolling, sessionId, onImageReceived, completed]);
