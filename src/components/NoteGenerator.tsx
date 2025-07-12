@@ -6,9 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sparkles, ChevronRight, User, MapPin, Gift } from "lucide-react";
+import { HandwritingPreview } from "./HandwritingPreview";
 
 interface NoteGeneratorProps {
   onNext: () => void;
+  handwritingSamples?: (string | HTMLCanvasElement)[];
 }
 
 const occasions = [
@@ -22,7 +24,7 @@ const occasions = [
   { value: "custom", label: "Custom Occasion" }
 ];
 
-export const NoteGenerator = ({ onNext }: NoteGeneratorProps) => {
+export const NoteGenerator = ({ onNext, handwritingSamples = [] }: NoteGeneratorProps) => {
   const [formData, setFormData] = useState({
     recipientName: "",
     occasion: "",
@@ -195,36 +197,34 @@ ${formData.personalMessage ? `${formData.personalMessage}\n\n` : ''}With love an
 
             {/* Preview Section */}
             <div className="space-y-6">
-              <Card className="p-6 h-full bg-paper shadow-soft">
-                <h3 className="font-elegant text-lg text-ink mb-4">Preview</h3>
-                
-                {generatedNote ? (
-                  <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-lg border border-border shadow-soft min-h-80">
-                      <div className="font-script text-lg text-ink leading-relaxed whitespace-pre-line">
-                        {generatedNote}
-                      </div>
-                    </div>
-                    
-                    <Button 
-                      variant="elegant" 
-                      size="lg" 
-                      onClick={onNext}
-                      className="w-full"
-                    >
-                      Continue to Preview
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ) : (
+              {generatedNote ? (
+                <HandwritingPreview 
+                  text={generatedNote}
+                  samples={handwritingSamples}
+                />
+              ) : (
+                <Card className="p-6 h-full bg-paper shadow-soft">
+                  <h3 className="font-elegant text-lg text-ink mb-4">Preview</h3>
                   <div className="flex items-center justify-center h-80 text-muted-foreground">
                     <div className="text-center space-y-2">
                       <Sparkles className="w-12 h-12 mx-auto opacity-50" />
-                      <p>Your generated note will appear here</p>
+                      <p>Your handwritten note will appear here</p>
                     </div>
                   </div>
-                )}
-              </Card>
+                </Card>
+              )}
+              
+              {generatedNote && (
+                <Button 
+                  variant="elegant" 
+                  size="lg" 
+                  onClick={onNext}
+                  className="w-full"
+                >
+                  Continue to Final Preview
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           </div>
         </div>

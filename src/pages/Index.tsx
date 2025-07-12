@@ -8,15 +8,19 @@ import { WelcomeScreen } from "@/components/WelcomeScreen";
 
 const Index = () => {
   const [currentStep, setCurrentStep] = useState<'welcome' | 'capture' | 'generate' | 'preview'>('welcome');
+  const [handwritingSamples, setHandwritingSamples] = useState<(string | HTMLCanvasElement)[]>([]);
 
   const renderStep = () => {
     switch (currentStep) {
       case 'welcome':
         return <WelcomeScreen onNext={() => setCurrentStep('capture')} />;
       case 'capture':
-        return <HandwritingCapture onNext={() => setCurrentStep('generate')} />;
+        return <HandwritingCapture onNext={(samples) => {
+          setHandwritingSamples(samples);
+          setCurrentStep('generate');
+        }} />;
       case 'generate':
-        return <NoteGenerator onNext={() => setCurrentStep('preview')} />;
+        return <NoteGenerator onNext={() => setCurrentStep('preview')} handwritingSamples={handwritingSamples} />;
       case 'preview':
         return <PreviewScreen onBack={() => setCurrentStep('generate')} />;
       default:

@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { MobileUploadSidecar } from "./MobileUploadSidecar";
 
 interface HandwritingCaptureProps {
-  onNext: () => void;
+  onNext: (samples: (string | HTMLCanvasElement)[]) => void;
 }
 
 const sampleTexts = [
@@ -182,8 +182,30 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
     if (currentSample < sampleTexts.length - 1) {
       setCurrentSample(currentSample + 1);
     } else {
-      onNext();
+      finishCapture();
     }
+  };
+
+  const finishCapture = () => {
+    // Collect all samples (canvas drawings, uploaded images, mobile images)
+    const allSamples: (string | HTMLCanvasElement)[] = [];
+    
+    // Add canvas if we have drawn content
+    if (canvasRef.current && hasDrawn) {
+      allSamples.push(canvasRef.current);
+    }
+    
+    // Add uploaded image
+    if (uploadedImage) {
+      allSamples.push(uploadedImage);
+    }
+    
+    // Add mobile images
+    mobileImages.forEach((imageUrl) => {
+      allSamples.push(imageUrl);
+    });
+    
+    onNext(allSamples);
   };
 
   const canCompleteSample = () => {
@@ -369,7 +391,7 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
             {canProceed && (
               <Button 
                 variant="elegant" 
-                onClick={onNext}
+                onClick={finishCapture}
                 size="lg"
               >
                 Complete Setup
