@@ -53,7 +53,7 @@ export const MobileUploadSidecar = ({
     generateQR();
   }, [sessionId, sampleText]);
 
-  // Poll for uploaded images (in a real app, this would use WebSockets or Supabase real-time)
+  // Poll for uploaded images using localStorage and cross-window communication
   useEffect(() => {
     if (!isPolling || completed) return;
 
@@ -72,20 +72,36 @@ export const MobileUploadSidecar = ({
           setIsPolling(false);
           // Clean up the stored data
           localStorage.removeItem(`mobile-upload-${sessionId}`);
+          return;
         }
         
-        // Also check for any mobile uploads (fallback for session ID issues)
+        // Also check for latest upload (fallback)
+        const latestUpload = localStorage.getItem('latest-mobile-upload');
+        if (latestUpload) {
+          const data = JSON.parse(latestUpload);
+          console.log('Found latest mobile upload:', data);
+          // Check if this upload is for our session or recent enough
+          if (data.sessionId === sessionId || Date.now() - data.timestamp < 30000) {
+            console.log('Using latest mobile upload for session');
+            onImageReceived(data.imageUrl);
+            setIsPolling(false);
+            localStorage.removeItem('latest-mobile-upload');
+            return;
+          }
+        }
+        
+        // Check for any mobile uploads (final fallback)
         const keys = Object.keys(localStorage);
         const mobileUploadKeys = keys.filter(key => key.startsWith('mobile-upload-'));
         console.log('All mobile upload keys:', mobileUploadKeys);
         
-        if (mobileUploadKeys.length > 0 && !stored) {
+        if (mobileUploadKeys.length > 0) {
           // Use the most recent upload if session doesn't match
           const latestKey = mobileUploadKeys[mobileUploadKeys.length - 1];
           const latestData = localStorage.getItem(latestKey);
           if (latestData) {
             const data = JSON.parse(latestData);
-            console.log('Using latest mobile upload:', data);
+            console.log('Using fallback mobile upload:', data);
             onImageReceived(data.imageUrl);
             setIsPolling(false);
             localStorage.removeItem(latestKey);
@@ -96,8 +112,21 @@ export const MobileUploadSidecar = ({
       }
     };
 
+    // Listen for storage events from other windows/tabs
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key?.startsWith('mobile-upload-') || e.key === 'latest-mobile-upload') {
+        console.log('Storage event detected:', e.key);
+        pollForImage();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
     const interval = setInterval(pollForImage, 1000); // Poll every second
-    return () => clearInterval(interval);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
   }, [isPolling, sessionId, onImageReceived, completed]);
 
   const regenerateQR = () => {
