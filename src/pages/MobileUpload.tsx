@@ -60,12 +60,30 @@ const MobileUpload = () => {
   };
 
   const submitUpload = async () => {
-    if (!uploadedImage || !sessionId) return;
+    if (!uploadedImage || !sessionId) {
+      console.error('Missing required data:', { uploadedImage: !!uploadedImage, sessionId });
+      return;
+    }
 
-    console.log('Submitting upload for session:', sessionId);
+    console.log('=== MOBILE UPLOAD DEBUG ===');
+    console.log('Session ID:', sessionId);
+    console.log('Sample Text:', sampleText);
+    console.log('Image size:', uploadedImage.length, 'characters');
+    console.log('LocalStorage available:', typeof Storage !== "undefined");
+    
     setIsUploading(true);
     
     try {
+      // Test localStorage access first
+      try {
+        localStorage.setItem('test-key', 'test-value');
+        localStorage.removeItem('test-key');
+        console.log('localStorage test: PASSED');
+      } catch (storageError) {
+        console.error('localStorage test: FAILED', storageError);
+        throw new Error('localStorage not available');
+      }
+      
       // Store in localStorage with session ID
       const uploadData = {
         sessionId,
@@ -75,12 +93,35 @@ const MobileUpload = () => {
       };
       
       const storageKey = `mobile-upload-${sessionId}`;
+      console.log('Attempting to store with key:', storageKey);
+      
+      // Store the main data
       localStorage.setItem(storageKey, JSON.stringify(uploadData));
+      console.log('✅ Successfully stored main upload data');
       
-      console.log('Stored mobile upload data:', storageKey, uploadData);
-      
-      // Also store a backup with a simpler key for fallback
+      // Store backup
       localStorage.setItem('latest-mobile-upload', JSON.stringify(uploadData));
+      console.log('✅ Successfully stored backup upload data');
+      
+      // Verify storage
+      const verification = localStorage.getItem(storageKey);
+      if (verification) {
+        console.log('✅ Storage verification: SUCCESS');
+        console.log('Stored data size:', verification.length, 'characters');
+      } else {
+        console.error('❌ Storage verification: FAILED - data not found');
+        throw new Error('Failed to store data');
+      }
+      
+      // Trigger storage event manually for same-tab detection
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: storageKey,
+        newValue: JSON.stringify(uploadData),
+        oldValue: null,
+        url: window.location.href
+      }));
+      
+      console.log('=== MOBILE UPLOAD SUCCESS ===');
       
       setIsComplete(true);
       toast({
@@ -88,10 +129,14 @@ const MobileUpload = () => {
         description: "Your handwriting sample has been sent to your computer"
       });
     } catch (error) {
-      console.error('Error submitting upload:', error);
+      console.error('=== MOBILE UPLOAD ERROR ===');
+      console.error('Error details:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
+      
       toast({
         title: "Upload failed",
-        description: "Please try again",
+        description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive"
       });
     } finally {
