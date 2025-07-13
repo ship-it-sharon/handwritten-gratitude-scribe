@@ -72,14 +72,30 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      console.error(`OpenAI API error: ${response.status} ${response.statusText}`, errorText);
+      throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();
     console.log('OpenAI response received:', JSON.stringify(data, null, 2));
     
-    // The response contains base64 image data directly for gpt-image-1
-    const base64Image = data.data?.[0]?.b64_json || data.b64_json || data.data?.[0]?.url;
+    // The response format might be different - let's check what we get
+    let base64Image;
+    if (data.data && data.data[0]) {
+      // Standard response format
+      base64Image = data.data[0].b64_json || data.data[0].url;
+    } else if (data.b64_json) {
+      // Direct base64 format
+      base64Image = data.b64_json;
+    } else {
+      console.error('Unexpected OpenAI response format:', data);
+      throw new Error('Unexpected response format from OpenAI');
+    }
+
+    if (!base64Image) {
+      throw new Error('No image data received from OpenAI');
+    }
 
     // Create an SVG with the embedded base64 image
     const handwritingSvg = `<svg width="800" height="400" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
