@@ -1,1 +1,7 @@
 project_id = "lkqjlibxmsnjqaifipes"
+
+[functions.generate-handwriting]
+verify_jwt = false
+
+[functions.validate-handwriting]
+verify_jwt = false
