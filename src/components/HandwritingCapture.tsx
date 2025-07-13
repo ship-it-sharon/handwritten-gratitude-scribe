@@ -34,6 +34,13 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
   const [showPreview, setShowPreview] = useState(false);
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   const [previewSvg, setPreviewSvg] = useState<string | null>(null);
+  const [validationResult, setValidationResult] = useState<{
+    isValid: boolean;
+    extractedText?: string;
+    expectedText: string;
+    isHandwriting?: boolean;
+    textMatches?: boolean;
+  } | null>(null);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -64,6 +71,7 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
   useEffect(() => {
     setHasDrawn(false);
     setUploadedImage(null);
+    setValidationResult(null);
     clearCanvas();
   }, [captureMethod, currentSample]);
 
@@ -130,6 +138,7 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
 
   const validateHandwriting = async (imageData: string) => {
     setIsValidating(true);
+    setValidationResult(null);
     try {
       const response = await fetch(`https://lkqjlibxmsnjqaifipes.supabase.co/functions/v1/validate-handwriting`, {
         method: 'POST',
@@ -145,31 +154,64 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
 
       const validation = await response.json();
       
+      // Store validation result for potential override
+      setValidationResult({
+        isValid: validation.isValid,
+        extractedText: validation.extractedText,
+        expectedText: sampleTexts[currentSample],
+        isHandwriting: validation.isHandwriting,
+        textMatches: validation.textMatches
+      });
+      
       if (!validation.isValid) {
-        let errorMessage = "This doesn't appear to be a valid handwriting sample. ";
-        
-        if (!validation.isHandwriting) {
-          errorMessage += "Please write the text by hand rather than typing or printing it. ";
-        }
-        
-        if (!validation.textMatches) {
-          errorMessage += `The text doesn't match exactly. Expected: "${sampleTexts[currentSample]}"`;
-          if (validation.extractedText) {
-            errorMessage += ` but found: "${validation.extractedText}"`;
+        // Don't show error immediately if it's just a text mismatch (allow override)
+        if (validation.isHandwriting && !validation.textMatches && validation.extractedText) {
+          // This is a potential override case - return false but don't show error
+          return false;
+        } else {
+          // Show error for other validation failures
+          let errorMessage = "This doesn't appear to be a valid handwriting sample. ";
+          
+          if (!validation.isHandwriting) {
+            errorMessage += "Please write the text by hand rather than typing or printing it. ";
           }
+          
+          toast.error(errorMessage);
+          return false;
         }
-        
-        toast.error(errorMessage);
-        return false;
       }
       
       return true;
     } catch (error) {
       console.error('Validation error:', error);
       toast.error("Unable to validate the image. Please try again.");
+      setValidationResult(null);
       return false;
     } finally {
       setIsValidating(false);
+    }
+  };
+
+  const acceptValidationOverride = () => {
+    if (validationResult && fileInputRef.current?.files?.[0]) {
+      // Get the image data from the file input
+      const file = fileInputRef.current.files[0];
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        setUploadedImage(result);
+        setValidationResult(null);
+        toast.success("Handwriting sample accepted!");
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const rejectValidationOverride = () => {
+    setValidationResult(null);
+    // Reset file input to allow new upload
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -207,10 +249,14 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
         setUploadedImage(result);
         toast.success("Handwriting sample validated successfully!");
       } else {
-        // Reset file input to allow selecting the same file again after validation failure
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
+        // Only reset if this is not an override case (validation result shows override UI)
+        if (!validationResult || !validationResult.isHandwriting || validationResult.textMatches || !validationResult.extractedText) {
+          // Reset file input to allow selecting the same file again after validation failure
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
         }
+        // If validationResult shows override UI, don't reset - let user choose
       }
     };
     reader.readAsDataURL(file);
@@ -566,6 +612,54 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
                       </div>
                     )}
                   </Card>
+
+                  {/* Validation Override UI */}
+                  {validationResult && !validationResult.isValid && validationResult.isHandwriting && !validationResult.textMatches && validationResult.extractedText && (
+                    <Card className="p-6 bg-yellow-50 border-yellow-200 border-2">
+                      <div className="space-y-4">
+                        <div className="text-center">
+                          <h3 className="font-medium text-ink mb-2">🤔 Close Match Detected</h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            We detected some handwriting, but the text doesn't match exactly. Here's what we found:
+                          </p>
+                        </div>
+                        
+                        <div className="space-y-3 text-sm">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-white rounded-lg border">
+                            <span className="font-medium text-muted-foreground">Expected:</span>
+                            <span className="font-mono text-ink">"{validationResult.expectedText}"</span>
+                          </div>
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-white rounded-lg border">
+                            <span className="font-medium text-muted-foreground">We found:</span>
+                            <span className="font-mono text-ink">"{validationResult.extractedText}"</span>
+                          </div>
+                        </div>
+                        
+                        <div className="text-center text-sm text-muted-foreground mb-4">
+                          Does this look close enough to accept? Small differences in punctuation or letter recognition are normal.
+                        </div>
+                        
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <Button 
+                            variant="outline" 
+                            onClick={rejectValidationOverride}
+                            className="flex-1"
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                            Try Different Photo
+                          </Button>
+                          <Button 
+                            variant="elegant" 
+                            onClick={acceptValidationOverride}
+                            className="flex-1"
+                          >
+                            <Check className="w-4 h-4" />
+                            Accept This Sample
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  )}
 
                   <input
                     ref={fileInputRef}
