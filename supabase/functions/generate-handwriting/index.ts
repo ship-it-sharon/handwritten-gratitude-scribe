@@ -48,16 +48,24 @@ serve(async (req) => {
       auth: replicateApiKey,
     });
 
-    // Use a handwriting generation model
-    // This model generates realistic handwritten text
+    // Use a different approach - generate an image that looks like handwriting
+    // Using a more accessible text-to-image model that can create handwriting
+    const prompt = `Handwritten text on white paper: "${text}". Natural handwriting style, ${styleCharacteristics?.slant ? 'slanted' : 'upright'} writing, ${styleCharacteristics?.spacing === 'wide' ? 'wide' : 'normal'} letter spacing, ${styleCharacteristics?.strokeWidth === 'thick' ? 'thick' : 'thin'} pen strokes. Clean white background, black ink, realistic handwriting`;
+    
+    console.log('Generated prompt:', prompt);
+    
     const output = await replicate.run(
-      "lambdal/text-to-handwriting",
+      "black-forest-labs/flux-schnell",
       {
         input: {
-          text: text,
-          style: "casual", // Options: casual, neat, messy
-          bias: styleCharacteristics?.slant || 0,
-          samples: 1
+          prompt: prompt,
+          go_fast: true,
+          megapixels: "1",
+          num_outputs: 1,
+          aspect_ratio: "16:9",
+          output_format: "webp",
+          output_quality: 80,
+          num_inference_steps: 4
         }
       }
     );
