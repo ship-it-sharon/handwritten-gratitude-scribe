@@ -24,50 +24,8 @@ image = modal.Image.debian_slim(python_version="3.11").pip_install([
     "libglib2.0-0"
 ])
 
-# Create a volume for storing the model
-model_volume = modal.Volume.from_name("one-dm-model", create_if_missing=True)
-
 @app.function(
     image=image,
-    volumes={"/model": model_volume},
-    timeout=900,
-    gpu="any"
-)
-def setup_model():
-    """Download and setup the One-DM model"""
-    import os
-    import subprocess
-    
-    model_dir = "/model"
-    
-    # Check if model already exists
-    if os.path.exists(f"{model_dir}/one_dm_model"):
-        print("Model already exists, skipping download")
-        return
-    
-    print("Downloading One-DM model...")
-    
-    # Clone the repository
-    subprocess.run([
-        "git", "clone", "https://github.com/microsoft/unilm.git", 
-        f"{model_dir}/unilm"
-    ], check=True)
-    
-    # Download pretrained weights (placeholder URL - replace with actual)
-    weights_url = "https://huggingface.co/microsoft/one-dm/resolve/main/pytorch_model.bin"
-    subprocess.run([
-        "wget", "-O", f"{model_dir}/pytorch_model.bin", weights_url
-    ], check=False)  # Don't fail if weights URL is invalid
-    
-    # Create a marker file
-    with open(f"{model_dir}/one_dm_model", "w") as f:
-        f.write("Model setup complete")
-    
-    print("Model setup complete!")
-
-@app.function(
-    image=image,
-    volumes={"/model": model_volume},
     gpu="any",
     timeout=300,
     container_idle_timeout=240
@@ -75,6 +33,7 @@ def setup_model():
 @modal.asgi_app()
 def fastapi_app():
     """Create FastAPI app"""
+    # Import FastAPI inside the function
     from fastapi import FastAPI, Request
     from fastapi.responses import JSONResponse
     import json
@@ -84,12 +43,10 @@ def fastapi_app():
     @app.post("/generate_handwriting")
     async def generate_handwriting_endpoint(request: Request):
         """Generate handwriting from text and reference samples"""
-        # Import all dependencies inside the function
-        import torch
-        import numpy as np
-        from PIL import Image, ImageDraw, ImageFont
+        # Import dependencies only when needed
         import base64
         import io
+        from PIL import Image, ImageDraw, ImageFont
         
         try:
             # Parse request body
@@ -105,38 +62,7 @@ def fastapi_app():
             
             print(f"Received request for text: '{text}' with {len(samples)} samples")
             
-            # Set device
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            print(f"Using device: {device}")
-            
-            # Process reference image if provided
-            ref_tensor = None
-            if samples and len(samples) > 0:
-                try:
-                    # Decode base64 image
-                    image_data = base64.b64decode(samples[0])
-                    ref_image = Image.open(io.BytesIO(image_data))
-                    
-                    # Convert to RGB if necessary
-                    if ref_image.mode != 'RGB':
-                        ref_image = ref_image.convert('RGB')
-                    
-                    # Resize to model input size
-                    ref_image = ref_image.resize((256, 256))
-                    
-                    # Convert to numpy array and normalize
-                    image_array = np.array(ref_image) / 255.0
-                    
-                    # Convert to tensor
-                    ref_tensor = torch.tensor(image_array, dtype=torch.float32)
-                    ref_tensor = ref_tensor.permute(2, 0, 1).unsqueeze(0)  # BCHW format
-                    ref_tensor = ref_tensor.to(device)
-                    
-                    print("Reference image processed successfully")
-                except Exception as e:
-                    print(f"Error processing reference image: {e}")
-            
-            # Generate placeholder handwriting using PIL
+            # Generate placeholder handwriting using PIL only
             width, height = 800, 200
             image = Image.new('RGB', (width, height), 'white')
             draw = ImageDraw.Draw(image)
