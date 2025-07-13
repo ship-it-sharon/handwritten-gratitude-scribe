@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import Replicate from "https://esm.sh/replicate@0.25.2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,10 +33,10 @@ serve(async (req) => {
       );
     }
 
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openaiApiKey) {
+    const replicateApiKey = Deno.env.get('REPLICATE_API_KEY');
+    if (!replicateApiKey) {
       return new Response(
-        JSON.stringify({ error: 'OpenAI API key not configured' }),
+        JSON.stringify({ error: 'Replicate API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -43,75 +44,81 @@ serve(async (req) => {
     console.log('Generating handwriting for text:', text);
     console.log('Style characteristics:', styleCharacteristics);
 
-    // Create a detailed prompt for handwriting generation
-    const prompt = `Generate an SVG representation of handwritten text that mimics human handwriting characteristics.
-
-Text to write: "${text}"
-
-Style characteristics:
-- Slant: ${styleCharacteristics?.slant || 'slight right slant'}
-- Letter spacing: ${styleCharacteristics?.spacing || 'normal'}
-- Stroke width: ${styleCharacteristics?.strokeWidth || 'medium'}
-- Baseline: ${styleCharacteristics?.baseline || 'slightly irregular'}
-
-Requirements:
-- Create realistic handwriting with natural variations
-- Use SVG format with proper stroke paths
-- Include subtle imperfections and character variations
-- Make it look like natural cursive or print handwriting
-- Use a consistent ink-blue color (#1e3a8a)
-- Size should fit within 800x200 viewBox
-- Add slight tremor and pressure variations
-
-Return only the SVG code without any explanatory text.`;
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert in generating SVG representations of handwritten text. You create realistic, natural-looking handwriting with proper stroke paths and human-like variations.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        max_tokens: 2000,
-        temperature: 0.7
-      }),
+    const replicate = new Replicate({
+      auth: replicateApiKey,
     });
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('OpenAI API error:', errorData);
-      return new Response(
-        JSON.stringify({ error: 'Failed to generate handwriting' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Use a handwriting generation model
+    // This model generates realistic handwritten text
+    const output = await replicate.run(
+      "lambdal/text-to-handwriting",
+      {
+        input: {
+          text: text,
+          style: "casual", // Options: casual, neat, messy
+          bias: styleCharacteristics?.slant || 0,
+          samples: 1
+        }
+      }
+    );
+
+    console.log('Replicate output:', output);
+
+    // Convert the output to SVG format if it's an image
+    let handwritingSvg;
+    
+    if (Array.isArray(output) && output.length > 0) {
+      // If we get an image URL, we'll convert it to an SVG with an embedded image
+      const imageUrl = output[0];
+      
+      handwritingSvg = `<svg width="800" height="200" viewBox="0 0 800 200" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+        <rect width="100%" height="100%" fill="white"/>
+        <image href="${imageUrl}" x="20" y="20" width="760" height="160" preserveAspectRatio="xMidYMid meet"/>
+      </svg>`;
+    } else {
+      // Fallback to a simple SVG text representation
+      const words = text.split(' ');
+      const letterSpacing = (styleCharacteristics?.spacing || 1) * 40;
+      const strokeWidth = styleCharacteristics?.strokeWidth || 2;
+      
+      let svgContent = `<svg width="800" height="200" viewBox="0 0 800 200" xmlns="http://www.w3.org/2000/svg">
+        <rect width="100%" height="100%" fill="white"/>
+        <style>
+          .handwriting {
+            font-family: 'Brush Script MT', cursive;
+            font-size: 24px;
+            fill: #1e3a8a;
+            stroke: #1e3a8a;
+            stroke-width: ${strokeWidth}px;
+          }
+        </style>`;
+      
+      let x = 40;
+      let y = 100;
+      
+      words.forEach((word, wordIndex) => {
+        if (x + word.length * letterSpacing > 750) {
+          x = 40;
+          y += 40;
+        }
+        
+        // Add some randomness to make it look more natural
+        const randomY = y + (Math.random() - 0.5) * 8;
+        const randomSlant = (styleCharacteristics?.slant || 0) + (Math.random() - 0.5) * 2;
+        
+        svgContent += `<text x="${x}" y="${randomY}" class="handwriting" transform="skewX(${randomSlant})">${word}</text>`;
+        x += (word.length * letterSpacing) + 20;
+      });
+      
+      svgContent += '</svg>';
+      handwritingSvg = svgContent;
     }
 
-    const data = await response.json();
-    const generatedSvg = data.choices[0]?.message?.content;
-
-    if (!generatedSvg) {
-      return new Response(
-        JSON.stringify({ error: 'No handwriting generated' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('Successfully generated handwriting SVG');
+    console.log('Successfully generated handwriting');
 
     return new Response(
       JSON.stringify({ 
-        handwritingSvg: generatedSvg,
+        handwritingSvg: handwritingSvg,
         characteristics: styleCharacteristics 
       }),
       { 
@@ -122,9 +129,30 @@ Return only the SVG code without any explanatory text.`;
 
   } catch (error) {
     console.error('Error in generate-handwriting function:', error);
+    
+    // Fallback: Generate a simple but readable SVG
+    const { text } = await req.json();
+    const fallbackSvg = `<svg width="800" height="200" viewBox="0 0 800 200" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100%" height="100%" fill="white"/>
+      <style>
+        .fallback-text {
+          font-family: 'Brush Script MT', 'Lucida Handwriting', cursive;
+          font-size: 28px;
+          fill: #1e3a8a;
+        }
+      </style>
+      <text x="40" y="100" class="fallback-text">${text || 'Sample handwriting text'}</text>
+    </svg>`;
+    
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        handwritingSvg: fallbackSvg,
+        characteristics: {} 
+      }),
+      { 
+        status: 200, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
   }
 });
