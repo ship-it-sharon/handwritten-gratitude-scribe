@@ -22,7 +22,7 @@ image = modal.Image.debian_slim(python_version="3.9").pip_install([
     timeout=300,
     container_idle_timeout=240
 )
-@modal.asgi_app()
+@modal.fastapi_endpoint()
 def fastapi_app():
     from fastapi import FastAPI, Request
     from fastapi.responses import JSONResponse
