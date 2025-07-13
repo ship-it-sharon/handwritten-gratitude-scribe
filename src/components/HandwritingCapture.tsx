@@ -201,6 +201,8 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
         const result = e.target?.result as string;
         setUploadedImage(result);
         setValidationResult(null);
+        // Complete the sample immediately
+        completeSample();
         toast.success("Handwriting sample accepted!");
       };
       reader.readAsDataURL(file);
@@ -557,61 +559,64 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
 
               <TabsContent value="upload" className="mt-6">
                 <div className="space-y-4">
-                  <Card className="p-8 bg-paper">
-                    {isValidating ? (
-                      <div className="text-center space-y-6 py-8">
-                        <div className="relative">
-                          <Loader2 className="w-16 h-16 mx-auto text-primary animate-spin" />
-                          <Brain className="w-6 h-6 absolute top-5 left-1/2 transform -translate-x-1/2 text-primary-light animate-pulse" />
-                        </div>
-                        <div className="space-y-2">
-                          <h3 className="font-elegant text-xl text-ink">✨ Analyzing your handwriting...</h3>
-                          <div className="space-y-1 text-muted-foreground">
-                            <p className="flex items-center justify-center gap-2">
-                              <Sparkles className="w-4 h-4 animate-pulse" />
-                              Reading your beautiful penmanship
-                            </p>
-                            <p>🔍 Checking if text matches perfectly</p>
-                            <p>🎨 Making sure it's handwritten (not typed!)</p>
+                  {/* Hide upload section when validation override is showing */}
+                  {!(validationResult && !validationResult.isValid && validationResult.isHandwriting && !validationResult.textMatches && validationResult.extractedText) && (
+                    <Card className="p-8 bg-paper">
+                      {isValidating ? (
+                        <div className="text-center space-y-6 py-8">
+                          <div className="relative">
+                            <Loader2 className="w-16 h-16 mx-auto text-primary animate-spin" />
+                            <Brain className="w-6 h-6 absolute top-5 left-1/2 transform -translate-x-1/2 text-primary-light animate-pulse" />
+                          </div>
+                          <div className="space-y-2">
+                            <h3 className="font-elegant text-xl text-ink">✨ Analyzing your handwriting...</h3>
+                            <div className="space-y-1 text-muted-foreground">
+                              <p className="flex items-center justify-center gap-2">
+                                <Sparkles className="w-4 h-4 animate-pulse" />
+                                Reading your beautiful penmanship
+                              </p>
+                              <p>🔍 Checking if text matches perfectly</p>
+                              <p>🎨 Making sure it's handwritten (not typed!)</p>
+                            </div>
+                          </div>
+                          <div className="text-xs text-muted-foreground italic">
+                            This usually takes just a few seconds...
                           </div>
                         </div>
-                        <div className="text-xs text-muted-foreground italic">
-                          This usually takes just a few seconds...
+                      ) : !uploadedImage ? (
+                        <div 
+                          onClick={isValidating ? undefined : triggerFileUpload}
+                          className={`border-2 border-dashed border-border rounded-lg p-8 text-center transition-colors ${
+                            isValidating 
+                              ? 'cursor-not-allowed opacity-50' 
+                              : 'cursor-pointer hover:border-primary'
+                          }`}
+                        >
+                          <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                          <h3 className="font-medium text-ink mb-2">Upload Handwriting Sample</h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Take a photo of the sample text written in your handwriting
+                          </p>
+                          <Button variant="outline" disabled={isValidating}>
+                            <Image className="w-4 h-4" />
+                            Choose Image
+                          </Button>
                         </div>
-                      </div>
-                    ) : !uploadedImage ? (
-                      <div 
-                        onClick={isValidating ? undefined : triggerFileUpload}
-                        className={`border-2 border-dashed border-border rounded-lg p-8 text-center transition-colors ${
-                          isValidating 
-                            ? 'cursor-not-allowed opacity-50' 
-                            : 'cursor-pointer hover:border-primary'
-                        }`}
-                      >
-                        <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                        <h3 className="font-medium text-ink mb-2">Upload Handwriting Sample</h3>
-                        <p className="text-sm text-muted-foreground mb-4">
-                          Take a photo of the sample text written in your handwriting
-                        </p>
-                        <Button variant="outline" disabled={isValidating}>
-                          <Image className="w-4 h-4" />
-                          Choose Image
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="text-center space-y-4">
-                        <img 
-                          src={uploadedImage} 
-                          alt="Uploaded handwriting sample"
-                          className="max-h-48 mx-auto rounded-lg border border-border"
-                        />
-                        <Button variant="outline" onClick={removeUploadedImage} disabled={isValidating}>
-                          <RotateCcw className="w-4 h-4" />
-                          Replace Image
-                        </Button>
-                      </div>
-                    )}
-                  </Card>
+                      ) : (
+                        <div className="text-center space-y-4">
+                          <img 
+                            src={uploadedImage} 
+                            alt="Uploaded handwriting sample"
+                            className="max-h-48 mx-auto rounded-lg border border-border"
+                          />
+                          <Button variant="outline" onClick={removeUploadedImage} disabled={isValidating}>
+                            <RotateCcw className="w-4 h-4" />
+                            Replace Image
+                          </Button>
+                        </div>
+                      )}
+                    </Card>
+                  )}
 
                   {/* Validation Override UI */}
                   {validationResult && !validationResult.isValid && validationResult.isHandwriting && !validationResult.textMatches && validationResult.extractedText && (
