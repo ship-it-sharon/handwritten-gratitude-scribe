@@ -202,7 +202,9 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
         setUploadedImage(result);
         setValidationResult(null);
         // Complete the sample immediately
-        completeSample();
+        const newCompleted = new Set(completedSamples);
+        newCompleted.add(currentSample);
+        setCompletedSamples(newCompleted);
         toast.success("Handwriting sample accepted!");
       };
       reader.readAsDataURL(file);
