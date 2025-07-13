@@ -7,6 +7,8 @@ app = modal.App("one-dm-handwriting")
 
 # Define the image with necessary dependencies
 image = modal.Image.debian_slim(python_version="3.9").pip_install([
+    "torch>=1.9.0",
+    "torchvision>=0.10.0", 
     "pillow>=8.3.0",
     "numpy>=1.21.0",
     "opencv-python>=4.5.0",
