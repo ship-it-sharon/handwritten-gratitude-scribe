@@ -40,6 +40,7 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
     expectedText: string;
     isHandwriting?: boolean;
     textMatches?: boolean;
+    originalImageData?: string; // Store the original image data
   } | null>(null);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -160,7 +161,8 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
         extractedText: validation.extractedText,
         expectedText: sampleTexts[currentSample],
         isHandwriting: validation.isHandwriting,
-        textMatches: validation.textMatches
+        textMatches: validation.textMatches,
+        originalImageData: imageData // Store the original image data
       });
       
       if (!validation.isValid) {
@@ -193,21 +195,15 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
   };
 
   const acceptValidationOverride = () => {
-    if (validationResult && fileInputRef.current?.files?.[0]) {
-      // Get the image data from the file input
-      const file = fileInputRef.current.files[0];
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        setUploadedImage(result);
-        setValidationResult(null);
-        // Complete the sample immediately
-        const newCompleted = new Set(completedSamples);
-        newCompleted.add(currentSample);
-        setCompletedSamples(newCompleted);
-        toast.success("Handwriting sample accepted!");
-      };
-      reader.readAsDataURL(file);
+    if (validationResult?.originalImageData) {
+      // Use the stored image data directly
+      setUploadedImage(validationResult.originalImageData);
+      setValidationResult(null);
+      // Complete the sample immediately
+      const newCompleted = new Set(completedSamples);
+      newCompleted.add(currentSample);
+      setCompletedSamples(newCompleted);
+      toast.success("Handwriting sample accepted!");
     }
   };
 
