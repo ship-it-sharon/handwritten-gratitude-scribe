@@ -36,6 +36,7 @@ export const generateHandwritingStyle = async (
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxrcWpsaWJ4bXNuanFhaWZpcGVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyOTgyNzQsImV4cCI6MjA2Nzg3NDI3NH0.mpltb2Pc2H2vQNAuYQntJv462kFvyHG6yxe5Yt-pdto`
       },
       body: JSON.stringify({
         text,
