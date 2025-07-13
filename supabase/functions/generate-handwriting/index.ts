@@ -76,10 +76,10 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log('OpenAI response received');
+    console.log('OpenAI response received:', JSON.stringify(data, null, 2));
     
-    // The response contains base64 image data directly
-    const base64Image = data.data[0].b64_json;
+    // The response contains base64 image data directly for gpt-image-1
+    const base64Image = data.data?.[0]?.b64_json || data.b64_json || data.data?.[0]?.url;
 
     // Create an SVG with the embedded base64 image
     const handwritingSvg = `<svg width="800" height="400" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
