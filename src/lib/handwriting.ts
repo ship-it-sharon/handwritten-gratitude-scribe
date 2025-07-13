@@ -32,13 +32,10 @@ export const generateHandwritingStyle = async (
   samples?: string[]
 ): Promise<string> => {
   try {
-    const response = await fetch('https://lkqjlibxmsnjqaifipes.supabase.co/functions/v1/generate-handwriting', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxrcWpsaWJ4bXNuanFhaWZpcGVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyOTgyNzQsImV4cCI6MjA2Nzg3NDI3NH0.mpltb2Pc2H2vQNAuYQntJv462kFvyHG6yxe5Yt-pdto`
-      },
-      body: JSON.stringify({
+    const { supabase } = await import('@/integrations/supabase/client');
+    
+    const { data, error } = await supabase.functions.invoke('generate-handwriting', {
+      body: {
         text,
         styleCharacteristics: {
           slant: style.slant,
@@ -47,14 +44,13 @@ export const generateHandwritingStyle = async (
           baseline: style.baseline,
         },
         samples,
-      }),
+      },
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to generate handwriting');
+    if (error) {
+      throw new Error(`Failed to generate handwriting: ${error.message}`);
     }
 
-    const data = await response.json();
     return data.handwritingSvg;
   } catch (error) {
     console.error('Error generating handwriting:', error);
