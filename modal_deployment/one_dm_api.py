@@ -7,6 +7,7 @@ app = modal.App("one-dm-handwriting")
 
 # Define the image with necessary dependencies
 image = modal.Image.debian_slim(python_version="3.9").pip_install([
+    "fastapi[standard]",
     "pillow>=8.3.0",
     "numpy>=1.21.0",
     "requests>=2.25.0"
