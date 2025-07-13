@@ -103,27 +103,14 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in generate-handwriting function:', error);
     
-    // Fallback: Generate a simple but readable SVG
-    const { text } = await req.json();
-    const fallbackSvg = `<svg width="800" height="200" viewBox="0 0 800 200" xmlns="http://www.w3.org/2000/svg">
-      <rect width="100%" height="100%" fill="white"/>
-      <style>
-        .fallback-text {
-          font-family: 'Brush Script MT', 'Lucida Handwriting', cursive;
-          font-size: 28px;
-          fill: #1e3a8a;
-        }
-      </style>
-      <text x="40" y="100" class="fallback-text">${text || 'Sample handwriting text'}</text>
-    </svg>`;
-    
+    // Return error response instead of fallback
     return new Response(
       JSON.stringify({ 
-        handwritingSvg: fallbackSvg,
-        characteristics: {} 
+        error: 'Failed to generate handwriting',
+        details: error.message 
       }),
       { 
-        status: 200, 
+        status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     );
