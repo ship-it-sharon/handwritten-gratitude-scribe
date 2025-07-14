@@ -13,12 +13,13 @@ image = modal.Image.debian_slim(python_version="3.9").pip_install([
     "requests>=2.25.0"
 ])
 
-@modal.asgi_app(
-    image=image,
-    keep_warm=1,  # Keep 1 container warm to prevent cold starts
-    concurrency_limit=10,  # Allow up to 10 concurrent requests
-    timeout=300  # 5 minute timeout for requests
-)
+# Add a function to keep the app warm
+@modal.function(image=image, keep_warm=1, timeout=300)
+def keep_warm():
+    """Keep container warm to prevent cold starts"""
+    return "warm"
+
+@modal.asgi_app(image=image)
 def fastapi_app():
     from fastapi import FastAPI, Request
     from fastapi.responses import JSONResponse
