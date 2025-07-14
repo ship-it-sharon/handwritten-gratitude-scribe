@@ -13,7 +13,8 @@ image = modal.Image.debian_slim(python_version="3.9").pip_install([
     "requests>=2.25.0"
 ])
 
-@modal.asgi_app(image=image)
+@app.function(image=image)
+@modal.asgi_app()
 def fastapi_app():
     from fastapi import FastAPI, Request
     from fastapi.responses import JSONResponse
