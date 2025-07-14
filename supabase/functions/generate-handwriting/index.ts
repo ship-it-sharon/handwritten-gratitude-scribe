@@ -76,8 +76,11 @@ serve(async (req) => {
         if (modalResponse.ok) {
           const modalData = await modalResponse.json()
           console.log(`Modal API call successful on attempt ${attempt}`)
-          console.log('Modal response data:', JSON.stringify(modalData))
-          return new Response(JSON.stringify({
+          console.log('Modal response data:', JSON.stringify(modalData, null, 2))
+          console.log('Modal handwritingSvg length:', modalData.handwritingSvg?.length || 'undefined')
+          console.log('Modal styleCharacteristics:', modalData.styleCharacteristics)
+          
+          const responseData = {
             handwritingSvg: modalData.handwritingSvg,
             styleCharacteristics: modalData.styleCharacteristics || {
               slant: 0.15,
@@ -85,7 +88,10 @@ serve(async (req) => {
               strokeWidth: 2.2,
               baseline: "natural"
             }
-          }), {
+          }
+          console.log('Final response data:', JSON.stringify(responseData, null, 2))
+          
+          return new Response(JSON.stringify(responseData), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
         } else {
