@@ -64,9 +64,12 @@ serve(async (req) => {
 
         clearTimeout(timeoutId)
 
+        console.log(`Modal API response status: ${modalResponse.status}`)
+        
         if (modalResponse.ok) {
           const modalData = await modalResponse.json()
           console.log(`Modal API call successful on attempt ${attempt}`)
+          console.log('Modal response data:', JSON.stringify(modalData))
           return new Response(JSON.stringify({
             handwritingSvg: modalData.handwritingSvg,
             styleCharacteristics: modalData.styleCharacteristics || {
