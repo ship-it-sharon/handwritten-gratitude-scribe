@@ -13,12 +13,6 @@ image = modal.Image.debian_slim(python_version="3.9").pip_install([
     "requests>=2.25.0"
 ])
 
-# Add a function to keep the app warm
-@modal.function(image=image, keep_warm=1, timeout=300)
-def keep_warm():
-    """Keep container warm to prevent cold starts"""
-    return "warm"
-
 @modal.asgi_app(image=image)
 def fastapi_app():
     from fastapi import FastAPI, Request
