@@ -18,13 +18,20 @@ interface HandwritingRequest {
 }
 
 serve(async (req) => {
+  console.log('=== Edge function called ===')
+  console.log('Method:', req.method)
+  console.log('URL:', req.url)
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log('Handling CORS preflight request')
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    console.log('Parsing request body...')
     const body = await req.json() as HandwritingRequest
+    console.log('Request body parsed:', JSON.stringify(body, null, 2))
     
     if (!body.text) {
       return new Response(
