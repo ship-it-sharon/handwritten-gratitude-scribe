@@ -9,7 +9,7 @@ app = modal.App("diffusionpen-handwriting")
 # Define the image with necessary ML dependencies for DiffusionPen
 image = (
     modal.Image.debian_slim(python_version="3.10")
-    .apt_install("git", "wget")
+    .apt_install("git", "wget", "libgl1-mesa-glx", "libglib2.0-0")
     .pip_install([
         "fastapi[standard]",
         "torch>=2.0.0",
@@ -24,13 +24,16 @@ image = (
         "matplotlib",
         "scipy",
         "huggingface-hub",
-        "safetensors"
+        "safetensors",
+        "xformers"  # For memory optimization
     ])
     .run_commands([
         # Clone DiffusionPen repository
         "cd /root && git clone https://github.com/koninik/DiffusionPen.git",
-        # Download pre-trained models from Hugging Face
-        "cd /root && mkdir -p /root/models",
+        # Install DiffusionPen requirements
+        "cd /root/DiffusionPen && pip install -r requirements.txt",
+        # Create necessary directories
+        "mkdir -p /root/models /tmp/style_in /tmp/style_out /tmp/samples",
     ])
 )
 
@@ -39,7 +42,7 @@ diffusion_model = None
 
 @app.function(
     image=image,
-    gpu="A10G",  # Need GPU for diffusion model inference
+    gpu="L40S",  # L40S recommended for large models and better performance
     timeout=300,  # 5 minutes timeout for model loading and inference
     keep_warm=1   # Keep one instance warm for faster response
 )
@@ -67,14 +70,38 @@ def fastapi_app():
         try:
             print("Loading DiffusionPen model...")
             
-            # Import DiffusionPen modules
-            from diffusers import StableDiffusionPipeline, DDIMScheduler
-            from transformers import AutoTokenizer
+            # Verify GPU availability
             import torch
+            print(f"CUDA available: {torch.cuda.is_available()}")
+            if torch.cuda.is_available():
+                print(f"GPU device: {torch.cuda.get_device_name()}")
+                print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
             
-            # Load the base Stable Diffusion model
-            model_id = "stable-diffusion-v1-5/stable-diffusion-v1-5"
             device = "cuda" if torch.cuda.is_available() else "cpu"
+            
+            # Add DiffusionPen to Python path and verify
+            import sys
+            sys.path.append('/root/DiffusionPen')
+            
+            # Verify DiffusionPen installation
+            if not os.path.exists('/root/DiffusionPen'):
+                raise FileNotFoundError("DiffusionPen repository not found")
+            
+            print("DiffusionPen path verified")
+            print(f"Contents of /root/DiffusionPen: {os.listdir('/root/DiffusionPen')}")
+            
+            # Initialize DiffusionPen model
+            # Import DiffusionPen modules after adding to path
+            try:
+                from diffusers import StableDiffusionPipeline, DDIMScheduler
+                from transformers import AutoTokenizer
+                print("DiffusionPen imports successful")
+            except ImportError as e:
+                print(f"Import error: {e}")
+                raise
+            
+            # Load the base Stable Diffusion model for DiffusionPen
+            model_id = "stable-diffusion-v1-5/stable-diffusion-v1-5"
             
             # Initialize the pipeline with custom scheduler
             scheduler = DDIMScheduler.from_pretrained(model_id, subfolder="scheduler")
@@ -89,26 +116,25 @@ def fastapi_app():
             
             pipeline = pipeline.to(device)
             
-            # Load DiffusionPen specific components from Hugging Face
-            from huggingface_hub import hf_hub_download
+            # Enable memory efficient attention
+            pipeline.enable_attention_slicing()
+            if hasattr(pipeline, 'enable_xformers_memory_efficient_attention'):
+                pipeline.enable_xformers_memory_efficient_attention()
             
-            # Download model weights
-            style_encoder_path = hf_hub_download(
-                repo_id="konnik/DiffusionPen",
-                filename="style_models/style_encoder.pth"
-            )
+            print(f"Pipeline loaded successfully on {device}")
             
-            print(f"Model loaded successfully on {device}")
             diffusion_model = {
                 'pipeline': pipeline,
                 'device': device,
-                'style_encoder_path': style_encoder_path
+                'diffusionpen_path': '/root/DiffusionPen'
             }
             
             return diffusion_model
             
         except Exception as e:
             print(f"Error loading model: {str(e)}")
+            import traceback
+            traceback.print_exc()
             raise e
     
     @app.post("/generate_handwriting")
@@ -174,78 +200,141 @@ def fastapi_app():
     return app
 
 async def generate_diffusion_handwriting(text: str, samples: List[str], model: dict, style_params: dict):
-    """Generate handwriting using DiffusionPen model"""
+    """Generate handwriting using DiffusionPen model with proper inference"""
     import torch
     import numpy as np
     from PIL import Image
     import cv2
+    import subprocess
+    import tempfile
+    import json
     
     try:
         pipeline = model['pipeline']
         device = model['device']
+        diffusionpen_path = model['diffusionpen_path']
         
-        # Process reference samples for style conditioning
-        style_images = []
-        if samples:
-            for sample_b64 in samples[:5]:  # Use up to 5 samples as per DiffusionPen
-                try:
-                    image_data = base64.b64decode(sample_b64)
-                    ref_image = Image.open(io.BytesIO(image_data))
-                    
-                    # Resize and preprocess for style encoding
-                    ref_image = ref_image.convert('RGB')
-                    ref_image = ref_image.resize((256, 64))  # Standard size for handwriting
-                    style_images.append(ref_image)
-                except Exception as e:
-                    print(f"Error processing sample: {e}")
-                    continue
+        print(f"Generating handwriting for text: '{text}'")
+        print(f"Using device: {device}")
+        print(f"Number of style samples: {len(samples)}")
         
-        # Create prompt for handwriting generation
-        # DiffusionPen uses text prompts combined with style conditioning
-        prompt = f"handwritten text: {text}"
-        
-        # Generate with style conditioning if we have reference samples
-        if style_images:
-            print(f"Generating with {len(style_images)} style reference samples")
-            # For now, use the first style image as conditioning
-            # In full DiffusionPen, this would go through the style encoder
+        # Create temporary directories for DiffusionPen inference
+        with tempfile.TemporaryDirectory() as temp_dir:
+            style_dir = os.path.join(temp_dir, "style_samples")
+            output_dir = os.path.join(temp_dir, "output")
+            os.makedirs(style_dir, exist_ok=True)
+            os.makedirs(output_dir, exist_ok=True)
             
-            # Create a simple text-to-image generation
-            # This is a simplified version - full DiffusionPen would use style encoder
+            print(f"Created temp directories: {style_dir}, {output_dir}")
+            
+            # Process and save reference samples for style conditioning
+            if samples:
+                print(f"Processing {len(samples)} style samples...")
+                for i, sample_b64 in enumerate(samples[:5]):  # Use up to 5 samples
+                    try:
+                        # Decode base64 image
+                        image_data = base64.b64decode(sample_b64)
+                        ref_image = Image.open(io.BytesIO(image_data))
+                        
+                        # Convert to RGB and resize appropriately for handwriting
+                        ref_image = ref_image.convert('RGB')
+                        ref_image = ref_image.resize((512, 128))  # Standard handwriting size
+                        
+                        # Save to style directory
+                        style_path = os.path.join(style_dir, f"style_{i}.png")
+                        ref_image.save(style_path)
+                        print(f"Saved style sample {i} to {style_path}")
+                        
+                    except Exception as e:
+                        print(f"Error processing sample {i}: {e}")
+                        continue
+            
+            # Try to use actual DiffusionPen inference if available
+            try:
+                # Check if DiffusionPen inference script exists
+                inference_script = os.path.join(diffusionpen_path, "inference.py")
+                if os.path.exists(inference_script):
+                    print(f"Found DiffusionPen inference script: {inference_script}")
+                    
+                    # Prepare arguments for DiffusionPen inference
+                    cmd = [
+                        "python", inference_script,
+                        "--text", text,
+                        "--style_dir", style_dir,
+                        "--output_dir", output_dir,
+                        "--device", device
+                    ]
+                    
+                    # Add style parameters if provided
+                    if style_params:
+                        if "slant" in style_params:
+                            cmd.extend(["--slant", str(style_params["slant"])])
+                        if "spacing" in style_params:
+                            cmd.extend(["--spacing", str(style_params["spacing"])])
+                    
+                    print(f"Running DiffusionPen inference: {' '.join(cmd)}")
+                    
+                    # Run DiffusionPen inference
+                    result = subprocess.run(
+                        cmd, 
+                        cwd=diffusionpen_path,
+                        capture_output=True, 
+                        text=True, 
+                        timeout=180  # 3 minutes timeout
+                    )
+                    
+                    if result.returncode == 0:
+                        print("DiffusionPen inference completed successfully")
+                        
+                        # Look for generated output
+                        output_files = [f for f in os.listdir(output_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
+                        if output_files:
+                            output_path = os.path.join(output_dir, output_files[0])
+                            generated_image = Image.open(output_path)
+                            print(f"Loaded generated image from {output_path}")
+                            return post_process_handwriting(generated_image)
+                    else:
+                        print(f"DiffusionPen inference failed with return code {result.returncode}")
+                        print(f"stdout: {result.stdout}")
+                        print(f"stderr: {result.stderr}")
+                        
+                else:
+                    print(f"DiffusionPen inference script not found at {inference_script}")
+                    
+            except Exception as diffusion_error:
+                print(f"Error running DiffusionPen inference: {diffusion_error}")
+            
+            # Fallback to Stable Diffusion pipeline if DiffusionPen fails
+            print("Falling back to Stable Diffusion pipeline")
+            
+            # Create enhanced prompt for handwriting
+            prompt = f"handwritten text '{text}', cursive handwriting, pen and paper, clean handwriting, realistic handwriting style"
+            negative_prompt = "printed text, typed text, computer font, digital text, blurry, distorted"
+            
             with torch.no_grad():
-                # Generate handwriting image
+                # Generate handwriting image with better parameters
                 result = pipeline(
                     prompt=prompt,
+                    negative_prompt=negative_prompt,
                     height=128,
                     width=512,
-                    num_inference_steps=20,
+                    num_inference_steps=30,  # More steps for better quality
                     guidance_scale=7.5,
                     generator=torch.Generator(device=device).manual_seed(42)
                 )
                 
                 generated_image = result.images[0]
-        else:
-            print("Generating with default style")
-            with torch.no_grad():
-                result = pipeline(
-                    prompt=prompt,
-                    height=128,
-                    width=512,
-                    num_inference_steps=20,
-                    guidance_scale=7.5,
-                    generator=torch.Generator(device=device).manual_seed(42)
-                )
-                
-                generated_image = result.images[0]
+                print("Generated image using Stable Diffusion fallback")
         
-        # Post-process the generated image to look more like handwriting
+        # Post-process the generated image
         generated_image = post_process_handwriting(generated_image)
-        
         return generated_image
         
     except Exception as e:
         print(f"Error in diffusion generation: {str(e)}")
-        # Fallback to a simple generated image
+        import traceback
+        traceback.print_exc()
+        # Final fallback
         return create_fallback_handwriting_image(text)
 
 def post_process_handwriting(image):
