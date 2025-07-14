@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import Replicate from "https://esm.sh/replicate@0.25.2"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,6 +12,7 @@ interface HandwritingRequest {
     spacing?: number
     strokeWidth?: number
     baseline?: string
+    pressure?: number
   }
   samples?: string[] // base64 encoded images
 }
@@ -24,15 +24,6 @@ serve(async (req) => {
   }
 
   try {
-    const REPLICATE_API_KEY = Deno.env.get('REPLICATE_API_KEY')
-    if (!REPLICATE_API_KEY) {
-      throw new Error('REPLICATE_API_KEY is not set')
-    }
-
-    const replicate = new Replicate({
-      auth: REPLICATE_API_KEY,
-    })
-
     const body = await req.json() as HandwritingRequest
     
     if (!body.text) {
@@ -47,54 +38,60 @@ serve(async (req) => {
 
     console.log(`Generating handwriting for: "${body.text}" with ${body.samples?.length || 0} reference samples`)
 
-    // If we have reference samples, use them to generate handwriting in that style
-    if (body.samples && body.samples.length > 0) {
-      console.log("Using reference samples for style matching")
-      
-      // Use a model that can generate handwriting based on reference images
-      // This uses a handwriting generation model that can take reference styles
-      const output = await replicate.run(
-        "pharmapsychotic/clip-interrogator:a4a8bafd6089e1716b06057c42b19378250d008b80fe87caa5cd36d40c1eda90",
-        {
-          input: {
-            image: body.samples[0], // Use first sample as reference
-            mode: "fast"
-          }
-        }
-      )
+    // Try to call Modal API first
+    try {
+      console.log('Attempting to call Modal API...')
+      const modalResponse = await fetch('https://ship-it-sharon--one-dm-handwriting-fastapi-app.modal.run/generate_handwriting', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: body.text,
+          samples: body.samples || [],
+        }),
+      })
 
-      // For now, let's generate a realistic handwriting SVG based on the analysis
-      const handwritingSvg = generateHandwritingSVG(body.text, body.styleCharacteristics || {})
-      
-      return new Response(JSON.stringify({
-        handwritingSvg,
-        styleCharacteristics: {
-          slant: 0.15,
-          spacing: 1.1,
-          strokeWidth: 2.2,
-          baseline: "natural"
-        }
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    } else {
-      // Generate default handwriting without reference samples
-      console.log("Generating default handwriting style")
-      
-      const handwritingSvg = generateHandwritingSVG(body.text, body.styleCharacteristics || {})
-      
-      return new Response(JSON.stringify({
-        handwritingSvg,
-        styleCharacteristics: {
-          slant: 0.1,
-          spacing: 1.0,
-          strokeWidth: 2.0,
-          baseline: "natural"
-        }
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+      if (modalResponse.ok) {
+        const modalData = await modalResponse.json()
+        console.log('Modal API call successful')
+        return new Response(JSON.stringify({
+          handwritingSvg: modalData.handwritingSvg,
+          styleCharacteristics: modalData.styleCharacteristics || {
+            slant: 0.15,
+            spacing: 1.1,
+            strokeWidth: 2.2,
+            baseline: "natural"
+          }
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      } else {
+        console.log('Modal API call failed, falling back to local generation')
+        const errorText = await modalResponse.text()
+        console.error('Modal API error:', errorText)
+      }
+    } catch (modalError) {
+      console.log('Modal API not accessible, falling back to local generation')
+      console.error('Modal API connection error:', modalError)
     }
+
+    // Fallback to local handwriting generation
+    console.log("Using fallback handwriting generation")
+    const handwritingSvg = generateHandwritingSVG(body.text, body.styleCharacteristics || {})
+    
+    return new Response(JSON.stringify({
+      handwritingSvg,
+      styleCharacteristics: {
+        slant: body.styleCharacteristics?.slant || 0.1,
+        spacing: body.styleCharacteristics?.spacing || 1.0,
+        strokeWidth: body.styleCharacteristics?.strokeWidth || 2.0,
+        baseline: body.styleCharacteristics?.baseline || "natural",
+        pressure: body.styleCharacteristics?.pressure || 1.0
+      }
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
 
   } catch (error) {
     console.error('Error in generate-handwriting function:', error)

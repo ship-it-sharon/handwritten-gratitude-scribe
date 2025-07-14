@@ -32,35 +32,24 @@ export const generateHandwritingStyle = async (
   samples?: string[]
 ): Promise<string> => {
   try {
-    // First check if the API is healthy
-    console.log('Checking API health...');
-    const healthResponse = await fetch('https://ship-it-sharon--one-dm-handwriting-fastapi-app.modal.run/health');
-    console.log('Health check response:', healthResponse.status);
-
-    const response = await fetch('https://ship-it-sharon--one-dm-handwriting-fastapi-app.modal.run/generate_handwriting', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    const { supabase } = await import('@/integrations/supabase/client');
+    
+    const { data, error } = await supabase.functions.invoke('generate-handwriting', {
+      body: {
         text,
         samples: samples || [],
-      }),
+        styleCharacteristics: {
+          slant: style.slant,
+          spacing: style.spacing,
+          strokeWidth: style.strokeWidth,
+          baseline: style.baseline,
+          pressure: style.pressure,
+        },
+      },
     });
 
-    console.log('Generate handwriting response:', response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Response error:', errorText);
-      throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
-    }
-
-    const data = await response.json();
-    console.log('Response data:', data);
-    
-    if (data.error) {
-      throw new Error(data.error);
+    if (error) {
+      throw new Error(`Failed to generate handwriting: ${error.message}`);
     }
 
     return data.handwritingSvg;
