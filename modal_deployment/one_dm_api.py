@@ -13,7 +13,7 @@ image = modal.Image.debian_slim(python_version="3.9").pip_install([
     "requests>=2.25.0"
 ])
 
-@app.function(image=image, timeout=300)
+@modal.web_endpoint(image=image)
 def fastapi_app():
     from fastapi import FastAPI, Request
     from fastapi.responses import JSONResponse
