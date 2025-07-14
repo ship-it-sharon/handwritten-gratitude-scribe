@@ -234,18 +234,28 @@ async def generate_diffusion_handwriting(text: str, samples: List[str], model: d
                         image_data = base64.b64decode(sample_b64)
                         ref_image = Image.open(io.BytesIO(image_data))
                         
-                        # Convert to RGB and resize appropriately for handwriting
-                        ref_image = ref_image.convert('RGB')
-                        ref_image = ref_image.resize((512, 128))  # Standard handwriting size
+                        # Clean and prepare sample image for DiffusionPen
+                        cleaned_image = clean_sample_image(ref_image)
                         
                         # Save to style directory
                         style_path = os.path.join(style_dir, f"style_{i}.png")
-                        ref_image.save(style_path)
-                        print(f"Saved style sample {i} to {style_path}")
+                        cleaned_image.save(style_path, "PNG")
+                        
+                        print(f"Saved cleaned style sample {i} to {style_path}")
+                        print(f"  - Final size: {cleaned_image.size}")
+                        print(f"  - Mode: {cleaned_image.mode}")
+                        print(f"  - Background check: {'White' if is_white_background(cleaned_image) else 'Not white'}")
                         
                     except Exception as e:
                         print(f"Error processing sample {i}: {e}")
                         continue
+            
+            # Add debug visualization for processed samples
+            if samples:
+                try:
+                    debug_save_sample_images(style_dir, samples)
+                except Exception as debug_error:
+                    print(f"Debug visualization failed: {debug_error}")
             
             # Check what files are actually in the DiffusionPen directory
             print(f"Contents of DiffusionPen directory: {os.listdir(diffusionpen_path)}")
@@ -431,5 +441,107 @@ def image_to_svg(image):
     </svg>'''
     
     return svg
+
+def clean_sample_image(image):
+    """Clean and prepare sample image for DiffusionPen following OpenAI's recommendations"""
+    from PIL import Image, ImageOps, ImageEnhance
+    import numpy as np
+    
+    # Convert to RGB if not already
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+    
+    # Convert to grayscale for processing
+    gray = image.convert('L')
+    
+    # Check if image appears to be inverted (white text on black background)
+    # If mean pixel value is low, it's likely inverted
+    pixel_array = np.array(gray)
+    mean_intensity = np.mean(pixel_array)
+    
+    if mean_intensity < 127:  # Likely inverted
+        print("  - Image appears inverted, correcting...")
+        gray = ImageOps.invert(gray)
+    
+    # Apply gentle auto-contrast to improve clarity
+    gray = ImageOps.autocontrast(gray, cutoff=1)
+    
+    # Resize to standard handwriting dimensions (maintain aspect ratio)
+    target_width, target_height = 512, 128
+    
+    # Calculate scaling to fit within target dimensions
+    scale_factor = min(target_width / gray.width, target_height / gray.height)
+    new_width = int(gray.width * scale_factor)
+    new_height = int(gray.height * scale_factor)
+    
+    # Resize with high-quality resampling
+    gray = gray.resize((new_width, new_height), Image.LANCZOS)
+    
+    # Create white background and paste the resized image
+    final_image = Image.new('L', (target_width, target_height), 255)  # White background
+    
+    # Center the image
+    paste_x = (target_width - new_width) // 2
+    paste_y = (target_height - new_height) // 2
+    final_image.paste(gray, (paste_x, paste_y))
+    
+    # Convert back to RGB
+    final_image = final_image.convert('RGB')
+    
+    # Apply gentle contrast enhancement
+    enhancer = ImageEnhance.Contrast(final_image)
+    final_image = enhancer.enhance(1.1)  # Slight contrast boost
+    
+    return final_image
+
+def is_white_background(image):
+    """Check if image has a white background"""
+    import numpy as np
+    
+    # Convert to grayscale for analysis
+    gray = image.convert('L')
+    pixel_array = np.array(gray)
+    
+    # Check the corners and edges for background color
+    corners = [
+        pixel_array[0, 0],  # Top-left
+        pixel_array[0, -1],  # Top-right
+        pixel_array[-1, 0],  # Bottom-left
+        pixel_array[-1, -1]  # Bottom-right
+    ]
+    
+    # Check if corners are mostly white (>200 out of 255)
+    white_corners = sum(1 for corner in corners if corner > 200)
+    
+    # Also check overall brightness
+    mean_brightness = np.mean(pixel_array)
+    
+    return white_corners >= 3 and mean_brightness > 180
+
+def debug_save_sample_images(style_dir, samples):
+    """Debug function to save processed samples for visual inspection"""
+    import matplotlib.pyplot as plt
+    import os
+    from PIL import Image
+    
+    debug_dir = os.path.join(style_dir, "debug_visualization")
+    os.makedirs(debug_dir, exist_ok=True)
+    
+    for i, sample_file in enumerate(os.listdir(style_dir)):
+        if sample_file.endswith('.png') and not sample_file.startswith('debug_'):
+            sample_path = os.path.join(style_dir, sample_file)
+            sample_image = Image.open(sample_path)
+            
+            # Save a matplotlib visualization
+            plt.figure(figsize=(10, 3))
+            plt.imshow(sample_image, cmap='gray')
+            plt.title(f"Sample {i}: {sample_image.size} - Mode: {sample_image.mode}")
+            plt.axis('off')
+            
+            debug_path = os.path.join(debug_dir, f"debug_{sample_file}.png")
+            plt.savefig(debug_path, dpi=150, bbox_inches='tight')
+            plt.close()
+            
+            print(f"Saved debug visualization: {debug_path}")
 
 # Remove old SVG generation functions - they're replaced by the diffusion model
