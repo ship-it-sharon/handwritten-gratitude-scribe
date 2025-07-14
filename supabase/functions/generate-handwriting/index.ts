@@ -40,7 +40,7 @@ serve(async (req) => {
 
     // Try to call Modal API with retries (Modal apps go idle and need warmup time)
     const maxRetries = 3
-    const timeoutMs = 30000 // 30 seconds for Modal to warm up
+    const timeoutMs = 45000 // 45 seconds for Modal to warm up
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -49,7 +49,8 @@ serve(async (req) => {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
         
-        const modalResponse = await fetch('https://ship-it-sharon--one-dm-handwriting-fastapi-app-dev.modal.run/generate_handwriting', {
+        // Try the correct Modal endpoint URL
+        const modalResponse = await fetch('https://ship-it-sharon--one-dm-handwriting-fastapi-app.modal.run/generate_handwriting', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
