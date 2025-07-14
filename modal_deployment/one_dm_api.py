@@ -30,8 +30,6 @@ image = (
     .run_commands([
         # Clone DiffusionPen repository
         "cd /root && git clone https://github.com/koninik/DiffusionPen.git",
-        # Install DiffusionPen requirements
-        "cd /root/DiffusionPen && pip install -r requirements.txt",
         # Create necessary directories
         "mkdir -p /root/models /tmp/style_in /tmp/style_out /tmp/samples",
     ])
