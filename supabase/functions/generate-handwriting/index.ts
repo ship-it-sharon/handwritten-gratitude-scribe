@@ -38,42 +38,70 @@ serve(async (req) => {
 
     console.log(`Generating handwriting for: "${body.text}" with ${body.samples?.length || 0} reference samples`)
 
-    // Try to call Modal API first
-    try {
-      console.log('Attempting to call Modal API...')
-      const modalResponse = await fetch('https://ship-it-sharon--one-dm-handwriting-fastapi-app.modal.run/generate_handwriting', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: body.text,
-          samples: body.samples || [],
-        }),
-      })
+    // Try to call Modal API with retries (Modal apps go idle and need warmup time)
+    const maxRetries = 3
+    const timeoutMs = 30000 // 30 seconds for Modal to warm up
 
-      if (modalResponse.ok) {
-        const modalData = await modalResponse.json()
-        console.log('Modal API call successful')
-        return new Response(JSON.stringify({
-          handwritingSvg: modalData.handwritingSvg,
-          styleCharacteristics: modalData.styleCharacteristics || {
-            slant: 0.15,
-            spacing: 1.1,
-            strokeWidth: 2.2,
-            baseline: "natural"
-          }
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Attempting Modal API call (attempt ${attempt}/${maxRetries})...`)
+        
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+        
+        const modalResponse = await fetch('https://ship-it-sharon--one-dm-handwriting-fastapi-app.modal.run/generate_handwriting', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: body.text,
+            samples: body.samples || [],
+          }),
+          signal: controller.signal
         })
-      } else {
-        console.log('Modal API call failed, falling back to local generation')
-        const errorText = await modalResponse.text()
-        console.error('Modal API error:', errorText)
+
+        clearTimeout(timeoutId)
+
+        if (modalResponse.ok) {
+          const modalData = await modalResponse.json()
+          console.log(`Modal API call successful on attempt ${attempt}`)
+          return new Response(JSON.stringify({
+            handwritingSvg: modalData.handwritingSvg,
+            styleCharacteristics: modalData.styleCharacteristics || {
+              slant: 0.15,
+              spacing: 1.1,
+              strokeWidth: 2.2,
+              baseline: "natural"
+            }
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        } else {
+          const errorText = await modalResponse.text()
+          console.log(`Modal API returned error on attempt ${attempt}: ${modalResponse.status} - ${errorText}`)
+          
+          // If it's the last attempt, fall back to local generation
+          if (attempt === maxRetries) {
+            console.log('All Modal API attempts failed, falling back to local generation')
+            break
+          }
+          
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 2000 * attempt))
+        }
+      } catch (modalError) {
+        console.log(`Modal API attempt ${attempt} failed:`, modalError.message)
+        
+        // If it's the last attempt, fall back to local generation
+        if (attempt === maxRetries) {
+          console.log('All Modal API attempts failed, falling back to local generation')
+          break
+        }
+        
+        // Wait before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 2000 * attempt))
       }
-    } catch (modalError) {
-      console.log('Modal API not accessible, falling back to local generation')
-      console.error('Modal API connection error:', modalError)
     }
 
     // Fallback to local handwriting generation
