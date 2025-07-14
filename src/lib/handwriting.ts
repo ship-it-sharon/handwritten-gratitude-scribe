@@ -32,6 +32,11 @@ export const generateHandwritingStyle = async (
   samples?: string[]
 ): Promise<string> => {
   try {
+    // First check if the API is healthy
+    console.log('Checking API health...');
+    const healthResponse = await fetch('https://ship-it-sharon--one-dm-handwriting-fastapi-app.modal.run/health');
+    console.log('Health check response:', healthResponse.status);
+
     const response = await fetch('https://ship-it-sharon--one-dm-handwriting-fastapi-app.modal.run/generate_handwriting', {
       method: 'POST',
       headers: {
@@ -43,11 +48,16 @@ export const generateHandwritingStyle = async (
       }),
     });
 
+    console.log('Generate handwriting response:', response.status);
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error('Response error:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
     }
 
     const data = await response.json();
+    console.log('Response data:', data);
     
     if (data.error) {
       throw new Error(data.error);
