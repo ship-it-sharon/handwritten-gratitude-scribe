@@ -48,6 +48,9 @@ export const generateHandwritingStyle = async (
       },
     });
 
+    console.log('Edge function response:', { data, error });
+    console.log('Received handwritingSvg length:', data?.handwritingSvg?.length || 'undefined');
+
     if (error) {
       throw new Error(`Failed to generate handwriting: ${error.message}`);
     }
