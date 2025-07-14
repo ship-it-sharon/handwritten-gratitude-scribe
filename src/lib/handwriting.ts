@@ -32,23 +32,25 @@ export const generateHandwritingStyle = async (
   samples?: string[]
 ): Promise<string> => {
   try {
-    const { supabase } = await import('@/integrations/supabase/client');
-    
-    const { data, error } = await supabase.functions.invoke('generate-handwriting', {
-      body: {
-        text,
-        styleCharacteristics: {
-          slant: style.slant,
-          spacing: style.spacing,
-          strokeWidth: style.strokeWidth,
-          baseline: style.baseline,
-        },
-        samples,
+    const response = await fetch('https://ship-it-sharon--one-dm-handwriting-fastapi-app.modal.run/generate_handwriting', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        text,
+        samples: samples || [],
+      }),
     });
 
-    if (error) {
-      throw new Error(`Failed to generate handwriting: ${error.message}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.error) {
+      throw new Error(data.error);
     }
 
     return data.handwritingSvg;
