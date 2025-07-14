@@ -49,7 +49,7 @@ serve(async (req) => {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
         
-        const modalResponse = await fetch('https://ship-it-sharon--one-dm-handwriting-fastapi-app.modal.run/generate_handwriting', {
+        const modalResponse = await fetch('https://ship-it-sharon--one-dm-handwriting-fastapi-app-dev.modal.run/generate_handwriting', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
