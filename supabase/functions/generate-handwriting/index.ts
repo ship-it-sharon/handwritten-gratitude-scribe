@@ -57,7 +57,7 @@ serve(async (req) => {
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
         
         // Try the correct Modal endpoint URL
-        const modalResponse = await fetch('https://ship-it-sharon--one-dm-handwriting-fastapi-app.modal.run/generate_handwriting', {
+        const modalResponse = await fetch('https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/generate_handwriting', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
