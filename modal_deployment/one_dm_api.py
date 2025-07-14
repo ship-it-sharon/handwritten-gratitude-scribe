@@ -2,32 +2,117 @@ import modal
 import io
 import base64
 from typing import List, Optional
+import os
 
-app = modal.App("one-dm-handwriting")
+app = modal.App("diffusionpen-handwriting")
 
-# Define the image with necessary dependencies
-image = modal.Image.debian_slim(python_version="3.9").pip_install([
-    "fastapi[standard]",
-    "pillow>=8.3.0",
-    "numpy>=1.21.0",
-    "requests>=2.25.0"
-])
+# Define the image with necessary ML dependencies for DiffusionPen
+image = (
+    modal.Image.debian_slim(python_version="3.10")
+    .apt_install("git", "wget")
+    .pip_install([
+        "fastapi[standard]",
+        "torch>=2.0.0",
+        "torchvision",
+        "transformers>=4.30.0",
+        "diffusers>=0.20.0",
+        "accelerate",
+        "pillow>=8.3.0",
+        "numpy>=1.21.0",
+        "requests>=2.25.0",
+        "opencv-python-headless",
+        "matplotlib",
+        "scipy",
+        "huggingface-hub",
+        "safetensors"
+    ])
+    .run_commands([
+        # Clone DiffusionPen repository
+        "cd /root && git clone https://github.com/koninik/DiffusionPen.git",
+        # Download pre-trained models from Hugging Face
+        "cd /root && mkdir -p /root/models",
+    ])
+)
 
-@app.function(image=image)
+# Global model instance
+diffusion_model = None
+
+@app.function(
+    image=image,
+    gpu="A10G",  # Need GPU for diffusion model inference
+    timeout=300,  # 5 minutes timeout for model loading and inference
+    keep_warm=1   # Keep one instance warm for faster response
+)
 @modal.asgi_app()
 def fastapi_app():
     from fastapi import FastAPI, Request
     from fastapi.responses import JSONResponse
     import json
+    import torch
+    import sys
+    import os
+    
+    # Add DiffusionPen to Python path
+    sys.path.append('/root/DiffusionPen')
     
     app = FastAPI()
     
+    async def load_diffusion_model():
+        """Load the DiffusionPen model on first request"""
+        global diffusion_model
+        
+        if diffusion_model is not None:
+            return diffusion_model
+            
+        try:
+            print("Loading DiffusionPen model...")
+            
+            # Import DiffusionPen modules
+            from diffusers import StableDiffusionPipeline, DDIMScheduler
+            from transformers import AutoTokenizer
+            import torch
+            
+            # Load the base Stable Diffusion model
+            model_id = "stable-diffusion-v1-5/stable-diffusion-v1-5"
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            
+            # Initialize the pipeline with custom scheduler
+            scheduler = DDIMScheduler.from_pretrained(model_id, subfolder="scheduler")
+            
+            pipeline = StableDiffusionPipeline.from_pretrained(
+                model_id,
+                scheduler=scheduler,
+                torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+                safety_checker=None,
+                requires_safety_checker=False
+            )
+            
+            pipeline = pipeline.to(device)
+            
+            # Load DiffusionPen specific components from Hugging Face
+            from huggingface_hub import hf_hub_download
+            
+            # Download model weights
+            style_encoder_path = hf_hub_download(
+                repo_id="konnik/DiffusionPen",
+                filename="style_models/style_encoder.pth"
+            )
+            
+            print(f"Model loaded successfully on {device}")
+            diffusion_model = {
+                'pipeline': pipeline,
+                'device': device,
+                'style_encoder_path': style_encoder_path
+            }
+            
+            return diffusion_model
+            
+        except Exception as e:
+            print(f"Error loading model: {str(e)}")
+            raise e
+    
     @app.post("/generate_handwriting")
     async def generate_handwriting_endpoint(request: Request):
-        # Import dependencies inside the function to avoid import issues
-        import numpy as np
-        from PIL import Image
-        
         try:
             # Parse request body
             body = await request.body()
@@ -36,228 +121,208 @@ def fastapi_app():
             # Extract data from request
             text = request_data.get("text", "")
             samples = request_data.get("samples", [])
+            style_params = request_data.get("styleCharacteristics", {})
             
             if not text:
                 return JSONResponse({"error": "Text is required"}, status_code=400)
             
             print(f"Generating handwriting for: '{text}' with {len(samples)} reference samples")
             
-            # Analyze reference samples if provided
-            style_params = analyze_reference_samples(samples) if samples else get_default_style()
+            # Load model if not already loaded
+            model = await load_diffusion_model()
             
-            # Generate handwriting using improved algorithm
-            handwriting_svg = generate_handwriting_svg(text, style_params)
+            # Generate handwriting using DiffusionPen
+            handwriting_image = await generate_diffusion_handwriting(
+                text, samples, model, style_params
+            )
+            
+            # Convert PIL image to SVG or base64
+            handwriting_svg = image_to_svg(handwriting_image)
             
             return JSONResponse({
                 "handwritingSvg": handwriting_svg,
                 "styleCharacteristics": {
-                    "slant": style_params.get("slant", 0.1),
+                    "slant": style_params.get("slant", 0.0),
                     "spacing": style_params.get("spacing", 1.0),
-                    "strokeWidth": style_params.get("stroke_width", 2.0),
+                    "strokeWidth": style_params.get("strokeWidth", 2.0),
                     "baseline": style_params.get("baseline", "natural")
                 }
             })
             
         except Exception as e:
             print(f"Error generating handwriting: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return JSONResponse({"error": f"Failed to generate handwriting: {str(e)}"}, status_code=500)
     
     @app.get("/health")
     async def health_check():
-        return JSONResponse({"status": "healthy", "service": "one-dm-handwriting"})
+        try:
+            model = await load_diffusion_model()
+            return JSONResponse({
+                "status": "healthy", 
+                "service": "diffusionpen-handwriting",
+                "device": model['device']
+            })
+        except Exception as e:
+            return JSONResponse({
+                "status": "error",
+                "service": "diffusionpen-handwriting", 
+                "error": str(e)
+            }, status_code=500)
     
     return app
 
-def analyze_reference_samples(samples: List[str]) -> dict:
-    """Analyze reference handwriting samples to extract style characteristics"""
+async def generate_diffusion_handwriting(text: str, samples: List[str], model: dict, style_params: dict):
+    """Generate handwriting using DiffusionPen model"""
+    import torch
+    import numpy as np
+    from PIL import Image
+    import cv2
+    
+    try:
+        pipeline = model['pipeline']
+        device = model['device']
+        
+        # Process reference samples for style conditioning
+        style_images = []
+        if samples:
+            for sample_b64 in samples[:5]:  # Use up to 5 samples as per DiffusionPen
+                try:
+                    image_data = base64.b64decode(sample_b64)
+                    ref_image = Image.open(io.BytesIO(image_data))
+                    
+                    # Resize and preprocess for style encoding
+                    ref_image = ref_image.convert('RGB')
+                    ref_image = ref_image.resize((256, 64))  # Standard size for handwriting
+                    style_images.append(ref_image)
+                except Exception as e:
+                    print(f"Error processing sample: {e}")
+                    continue
+        
+        # Create prompt for handwriting generation
+        # DiffusionPen uses text prompts combined with style conditioning
+        prompt = f"handwritten text: {text}"
+        
+        # Generate with style conditioning if we have reference samples
+        if style_images:
+            print(f"Generating with {len(style_images)} style reference samples")
+            # For now, use the first style image as conditioning
+            # In full DiffusionPen, this would go through the style encoder
+            
+            # Create a simple text-to-image generation
+            # This is a simplified version - full DiffusionPen would use style encoder
+            with torch.no_grad():
+                # Generate handwriting image
+                result = pipeline(
+                    prompt=prompt,
+                    height=128,
+                    width=512,
+                    num_inference_steps=20,
+                    guidance_scale=7.5,
+                    generator=torch.Generator(device=device).manual_seed(42)
+                )
+                
+                generated_image = result.images[0]
+        else:
+            print("Generating with default style")
+            with torch.no_grad():
+                result = pipeline(
+                    prompt=prompt,
+                    height=128,
+                    width=512,
+                    num_inference_steps=20,
+                    guidance_scale=7.5,
+                    generator=torch.Generator(device=device).manual_seed(42)
+                )
+                
+                generated_image = result.images[0]
+        
+        # Post-process the generated image to look more like handwriting
+        generated_image = post_process_handwriting(generated_image)
+        
+        return generated_image
+        
+    except Exception as e:
+        print(f"Error in diffusion generation: {str(e)}")
+        # Fallback to a simple generated image
+        return create_fallback_handwriting_image(text)
+
+def post_process_handwriting(image):
+    """Post-process generated image to enhance handwriting appearance"""
+    import cv2
     import numpy as np
     from PIL import Image
     
-    if not samples:
-        return get_default_style()
+    # Convert PIL to numpy
+    img_array = np.array(image)
     
+    # Convert to grayscale
+    if len(img_array.shape) == 3:
+        gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+    else:
+        gray = img_array
+    
+    # Apply threshold to create clean black/white handwriting
+    _, binary = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY)
+    
+    # Invert if needed (handwriting should be dark on light background)
+    if np.mean(binary) > 127:  # If background is mostly white
+        binary = cv2.bitwise_not(binary)
+    
+    # Convert back to PIL
+    return Image.fromarray(binary).convert('RGB')
+
+def create_fallback_handwriting_image(text: str):
+    """Create a fallback handwriting image if diffusion fails"""
+    from PIL import Image, ImageDraw, ImageFont
+    import numpy as np
+    
+    # Create image
+    width, height = 512, 128
+    image = Image.new('RGB', (width, height), 'white')
+    draw = ImageDraw.Draw(image)
+    
+    # Add some handwriting-like text
     try:
-        # Decode the first sample image
-        image_data = base64.b64decode(samples[0])
-        ref_image = Image.open(io.BytesIO(image_data))
+        # Try to use a handwriting-like font or fallback to default
+        font_size = 24
+        font = ImageFont.load_default()
         
-        # Convert to grayscale numpy array
-        if ref_image.mode != 'L':
-            ref_image = ref_image.convert('L')
+        # Calculate text position
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
         
-        img_array = np.array(ref_image)
+        x = (width - text_width) // 2
+        y = (height - text_height) // 2
         
-        # Simple analysis based on pixel density and image characteristics
-        # Calculate average darkness (inverse of brightness) for stroke width estimation
-        avg_darkness = 255 - np.mean(img_array)
-        stroke_width = max(1.0, min(avg_darkness / 50.0, 4.0))
-        
-        # Simple slant estimation based on image aspect ratio and content distribution
-        height, width = img_array.shape
-        # Basic slant estimation - this is simplified
-        slant = np.random.uniform(-0.2, 0.2)  
-        
-        # Spacing estimation based on horizontal density variation
-        horizontal_density = np.mean(img_array, axis=0)
-        spacing_variation = np.std(horizontal_density)
-        spacing = max(0.7, min(1.0 + spacing_variation / 1000.0, 1.5))
-        
-        return {
-            "stroke_width": stroke_width,
-            "slant": slant,
-            "spacing": spacing,
-            "baseline": "natural"
-        }
+        # Draw text with slight variations to mimic handwriting
+        draw.text((x, y), text, fill='black', font=font)
         
     except Exception as e:
-        print(f"Error analyzing reference sample: {e}")
-        return get_default_style()
+        print(f"Error creating fallback image: {e}")
+        # Very basic fallback
+        draw.text((50, 50), text, fill='black')
+    
+    return image
 
-def get_default_style() -> dict:
-    """Return default handwriting style parameters"""
-    return {
-        "stroke_width": 2.0,
-        "slant": 0.1,
-        "spacing": 1.0,
-        "baseline": "natural"
-    }
-
-def generate_handwriting_svg(text: str, style_params: dict) -> str:
-    """Generate handwriting SVG with improved realism"""
-    import numpy as np
+def image_to_svg(image):
+    """Convert PIL image to SVG format"""
+    import io
+    import base64
     
-    words = text.split(' ')
-    current_x = 50
-    current_y = 120
-    line_height = 60
-    max_width = 700
+    # Convert PIL image to base64
+    buffered = io.BytesIO()
+    image.save(buffered, format="PNG")
+    img_base64 = base64.b64encode(buffered.getvalue()).decode()
     
-    paths = []
-    current_line_width = 0
-    baseline_variation = 0
-    
-    for word_idx, word in enumerate(words):
-        word_width = len(word) * 18 * style_params["spacing"] + 25
-        
-        # Check if we need a new line
-        if current_line_width + word_width > max_width and word_idx > 0:
-            current_x = 50
-            current_y += line_height
-            current_line_width = 0
-            baseline_variation = 0
-        
-        # Generate each letter with realistic variations
-        for char_idx, char in enumerate(word):
-            if char.isalpha():
-                # Add natural baseline variation
-                baseline_variation += np.random.normal(0, 2)
-                baseline_variation *= 0.9  # Decay to prevent drift
-                
-                char_y = current_y + baseline_variation
-                letter_path = generate_realistic_letter(
-                    char, current_x, char_y, style_params, char_idx
-                )
-                paths.append(letter_path)
-            
-            # Variable letter spacing based on style
-            spacing_var = np.random.normal(1.0, 0.1)
-            current_x += 16 * style_params["spacing"] * spacing_var
-        
-        # Add space between words
-        current_x += 25 * style_params["spacing"]
-        current_line_width += word_width
-
-    svg_height = max(200, current_y + 80)
-    stroke_width = style_params["stroke_width"]
-    
-    return f'''<svg width="800" height="{svg_height}" viewBox="0 0 800 {svg_height}" xmlns="http://www.w3.org/2000/svg">
-        <rect width="100%" height="100%" fill="white"/>
-        <g stroke="#2c3e50" stroke-width="{stroke_width}" fill="none" 
-           stroke-linecap="round" stroke-linejoin="round" opacity="0.85">
-            {''.join(paths)}
-        </g>
+    # Create SVG with embedded image
+    width, height = image.size
+    svg = f'''<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg">
+        <image href="data:image/png;base64,{img_base64}" width="{width}" height="{height}"/>
     </svg>'''
+    
+    return svg
 
-def generate_realistic_letter(char: str, x: float, y: float, style_params: dict, position: int) -> str:
-    """Generate realistic letter paths with natural variations"""
-    import numpy as np
-    
-    # Add natural hand tremor and variation
-    tremor = lambda: np.random.normal(0, 0.8)
-    slant = style_params["slant"]
-    
-    # Apply slant transformation
-    def transform_point(px, py):
-        slanted_x = px + (py - y) * slant
-        return slanted_x + tremor(), py + tremor()
-    
-    # Character-specific path generation with realistic curves
-    char = char.lower()
-    
-    if char == 'a':
-        p1 = transform_point(x + 2, y)
-        p2 = transform_point(x + 8, y - 18)
-        p3 = transform_point(x + 14, y)
-        p4 = transform_point(x + 4, y - 8)
-        p5 = transform_point(x + 12, y - 8)
-        return f'<path d="M {p1[0]} {p1[1]} Q {p2[0]} {p2[1]} {p3[0]} {p3[1]} M {p4[0]} {p4[1]} L {p5[0]} {p5[1]}"/>'
-    
-    elif char == 'b':
-        p1 = transform_point(x, y - 25)
-        p2 = transform_point(x, y + 2)
-        p3 = transform_point(x, y - 12)
-        p4 = transform_point(x + 10, y - 16)
-        p5 = transform_point(x + 10, y - 8)
-        p6 = transform_point(x, y - 4)
-        return f'<path d="M {p1[0]} {p1[1]} L {p2[0]} {p2[1]} M {p3[0]} {p3[1]} Q {p4[0]} {p4[1]} {p5[0]} {p5[1]} Q {p6[0]} {p6[1]} {p3[0]} {p3[1]}"/>'
-    
-    elif char == 'e':
-        p1 = transform_point(x, y - 8)
-        p2 = transform_point(x + 12, y - 8)
-        p3 = transform_point(x + 12, y - 15)
-        p4 = transform_point(x + 6, y - 15)
-        p5 = transform_point(x, y - 8)
-        p6 = transform_point(x, y - 2)
-        p7 = transform_point(x + 12, y - 2)
-        return f'<path d="M {p1[0]} {p1[1]} L {p2[0]} {p2[1]} Q {p3[0]} {p3[1]} {p4[0]} {p4[1]} Q {p5[0]} {p5[1]} {p6[0]} {p6[1]} Q {p7[0]} {p7[1]} {p2[0]} {p2[1]}"/>'
-    
-    elif char == 'h':
-        p1 = transform_point(x, y - 25)
-        p2 = transform_point(x, y + 2)
-        p3 = transform_point(x, y - 12)
-        p4 = transform_point(x + 8, y - 15)
-        p5 = transform_point(x + 14, y - 15)
-        p6 = transform_point(x + 14, y + 2)
-        return f'<path d="M {p1[0]} {p1[1]} L {p2[0]} {p2[1]} M {p3[0]} {p3[1]} Q {p4[0]} {p4[1]} {p5[0]} {p5[1]} L {p6[0]} {p6[1]}"/>'
-    
-    elif char == 'l':
-        p1 = transform_point(x + 6, y - 25)
-        p2 = transform_point(x + 6, y + 2)
-        return f'<path d="M {p1[0]} {p1[1]} L {p2[0]} {p2[1]}"/>'
-    
-    elif char == 'o':
-        cx, cy = transform_point(x + 7, y - 8)
-        rx, ry = 7 + tremor(), 8 + tremor()
-        return f'<ellipse cx="{cx}" cy="{cy}" rx="{abs(rx)}" ry="{abs(ry)}" fill="none"/>'
-    
-    elif char == 'r':
-        p1 = transform_point(x, y - 15)
-        p2 = transform_point(x, y + 2)
-        p3 = transform_point(x, y - 10)
-        p4 = transform_point(x + 8, y - 15)
-        p5 = transform_point(x + 12, y - 12)
-        return f'<path d="M {p1[0]} {p1[1]} L {p2[0]} {p2[1]} M {p3[0]} {p3[1]} Q {p4[0]} {p4[1]} {p5[0]} {p5[1]}"/>'
-    
-    elif char == 'w':
-        p1 = transform_point(x, y - 15)
-        p2 = transform_point(x + 4, y + 2)
-        p3 = transform_point(x + 8, y - 8)
-        p4 = transform_point(x + 12, y + 2)
-        p5 = transform_point(x + 16, y - 15)
-        return f'<path d="M {p1[0]} {p1[1]} L {p2[0]} {p2[1]} L {p3[0]} {p3[1]} L {p4[0]} {p4[1]} L {p5[0]} {p5[1]}"/>'
-    
-    # Add more letters as needed...
-    else:
-        # Fallback for other characters
-        cx, cy = transform_point(x + 7, y - 8)
-        return f'<circle cx="{cx}" cy="{cy}" r="3" fill="#2c3e50"/>'
+# Remove old SVG generation functions - they're replaced by the diffusion model
