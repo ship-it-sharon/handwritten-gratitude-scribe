@@ -247,13 +247,23 @@ async def generate_diffusion_handwriting(text: str, samples: List[str], model: d
                         print(f"Error processing sample {i}: {e}")
                         continue
             
+            # Check what files are actually in the DiffusionPen directory
+            print(f"Contents of DiffusionPen directory: {os.listdir(diffusionpen_path)}")
+            
             # Try to use actual DiffusionPen inference if available
             try:
-                # Check if DiffusionPen inference script exists
-                inference_script = os.path.join(diffusionpen_path, "inference.py")
-                if os.path.exists(inference_script):
-                    print(f"Found DiffusionPen inference script: {inference_script}")
-                    
+                # Look for common DiffusionPen script names
+                possible_scripts = ["inference.py", "demo.py", "main.py", "generate.py"]
+                inference_script = None
+                
+                for script_name in possible_scripts:
+                    script_path = os.path.join(diffusionpen_path, script_name)
+                    if os.path.exists(script_path):
+                        inference_script = script_path
+                        print(f"Found DiffusionPen script: {script_path}")
+                        break
+                
+                if inference_script:
                     # Prepare arguments for DiffusionPen inference
                     cmd = [
                         "python", inference_script,
@@ -283,6 +293,7 @@ async def generate_diffusion_handwriting(text: str, samples: List[str], model: d
                     
                     if result.returncode == 0:
                         print("DiffusionPen inference completed successfully")
+                        print(f"stdout: {result.stdout}")
                         
                         # Look for generated output
                         output_files = [f for f in os.listdir(output_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
@@ -290,24 +301,24 @@ async def generate_diffusion_handwriting(text: str, samples: List[str], model: d
                             output_path = os.path.join(output_dir, output_files[0])
                             generated_image = Image.open(output_path)
                             print(f"Loaded generated image from {output_path}")
-                            return post_process_handwriting(generated_image)
+                            return generated_image  # Return without aggressive post-processing
                     else:
                         print(f"DiffusionPen inference failed with return code {result.returncode}")
                         print(f"stdout: {result.stdout}")
                         print(f"stderr: {result.stderr}")
                         
                 else:
-                    print(f"DiffusionPen inference script not found at {inference_script}")
+                    print("No DiffusionPen inference script found")
                     
             except Exception as diffusion_error:
                 print(f"Error running DiffusionPen inference: {diffusion_error}")
             
-            # Fallback to Stable Diffusion pipeline if DiffusionPen fails
-            print("Falling back to Stable Diffusion pipeline")
+            # Fallback to Stable Diffusion pipeline with improved prompts
+            print("Falling back to Stable Diffusion pipeline with improved prompts")
             
-            # Create enhanced prompt for handwriting
-            prompt = f"handwritten text '{text}', cursive handwriting, pen and paper, clean handwriting, realistic handwriting style"
-            negative_prompt = "printed text, typed text, computer font, digital text, blurry, distorted"
+            # Create much better prompt for handwriting
+            prompt = f"beautiful handwritten text saying '{text}', elegant cursive handwriting, black ink on white paper, natural handwriting style, realistic pen strokes, clean and legible, professional handwriting"
+            negative_prompt = "printed text, typed text, computer font, digital text, blurry, distorted, pixelated, low quality, artifacts, messy"
             
             with torch.no_grad():
                 # Generate handwriting image with better parameters
@@ -316,13 +327,13 @@ async def generate_diffusion_handwriting(text: str, samples: List[str], model: d
                     negative_prompt=negative_prompt,
                     height=128,
                     width=512,
-                    num_inference_steps=30,  # More steps for better quality
-                    guidance_scale=7.5,
+                    num_inference_steps=50,  # More steps for better quality
+                    guidance_scale=8.0,      # Higher guidance for better prompt following
                     generator=torch.Generator(device=device).manual_seed(42)
                 )
                 
                 generated_image = result.images[0]
-                print("Generated image using Stable Diffusion fallback")
+                print("Generated image using improved Stable Diffusion prompts")
         
         # Post-process the generated image
         generated_image = post_process_handwriting(generated_image)
@@ -336,10 +347,10 @@ async def generate_diffusion_handwriting(text: str, samples: List[str], model: d
         return create_fallback_handwriting_image(text)
 
 def post_process_handwriting(image):
-    """Post-process generated image to enhance handwriting appearance"""
+    """Post-process generated image to enhance handwriting appearance with gentler processing"""
     import cv2
     import numpy as np
-    from PIL import Image
+    from PIL import Image, ImageEnhance
     
     # Convert PIL to numpy
     img_array = np.array(image)
@@ -350,15 +361,24 @@ def post_process_handwriting(image):
     else:
         gray = img_array
     
-    # Apply threshold to create clean black/white handwriting
-    _, binary = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY)
+    # Apply gentle contrast enhancement instead of harsh thresholding
+    # Use adaptive thresholding for better results
+    adaptive_thresh = cv2.adaptiveThreshold(
+        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+    )
     
     # Invert if needed (handwriting should be dark on light background)
-    if np.mean(binary) > 127:  # If background is mostly white
-        binary = cv2.bitwise_not(binary)
+    if np.mean(adaptive_thresh) > 127:  # If background is mostly white
+        adaptive_thresh = cv2.bitwise_not(adaptive_thresh)
     
-    # Convert back to PIL
-    return Image.fromarray(binary).convert('RGB')
+    # Convert back to PIL and enhance
+    processed_image = Image.fromarray(adaptive_thresh).convert('RGB')
+    
+    # Apply gentle contrast enhancement
+    enhancer = ImageEnhance.Contrast(processed_image)
+    processed_image = enhancer.enhance(1.2)  # Slight contrast boost
+    
+    return processed_image
 
 def create_fallback_handwriting_image(text: str):
     """Create a fallback handwriting image if diffusion fails"""
