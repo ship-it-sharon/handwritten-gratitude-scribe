@@ -53,11 +53,21 @@ serve(async (req) => {
       try {
         console.log(`Attempting Modal API call (attempt ${attempt}/${maxRetries})...`)
         
+        // First test basic connectivity to Modal
+        const modalUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/generate_handwriting'
+        console.log(`Calling Modal API at: ${modalUrl}`)
+        
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
         
+        console.log('Making fetch request to Modal API...')
+        console.log('Request payload:', JSON.stringify({
+          text: body.text,
+          samples: body.samples || [],
+        }, null, 2))
+        
         // Try the correct Modal endpoint URL
-        const modalResponse = await fetch('https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/generate_handwriting', {
+        const modalResponse = await fetch(modalUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
