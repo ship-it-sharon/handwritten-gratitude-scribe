@@ -46,36 +46,46 @@ serve(async (req) => {
     console.log(`Generating handwriting for: "${body.text}" with ${body.samples?.length || 0} reference samples`)
 
     // Try to call Modal API with retries (Modal apps go idle and need warmup time)
-    const maxRetries = 3
-    const timeoutMs = 45000 // 45 seconds for Modal to warm up
+    const maxRetries = 1 // Reduce retries to see failure faster
+    const timeoutMs = 10000 // Reduce to 10 seconds to see timeout faster
+
+    console.log('=== STARTING MODAL API ATTEMPTS ===')
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`Attempting Modal API call (attempt ${attempt}/${maxRetries})...`)
         
-        // First test basic connectivity to Modal
         const modalUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/generate_handwriting'
-        console.log(`Calling Modal API at: ${modalUrl}`)
+        console.log(`Modal URL: ${modalUrl}`)
+        
+        // Test basic connectivity first
+        console.log('Testing basic connectivity...')
+        try {
+          const testResponse = await fetch(modalUrl, { 
+            method: 'GET',
+            signal: AbortSignal.timeout(5000)
+          })
+          console.log(`Basic connectivity test status: ${testResponse.status}`)
+        } catch (connectError) {
+          console.error('Connectivity test failed:', connectError.message)
+        }
         
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
         
-        console.log('Making fetch request to Modal API...')
-        console.log('Request payload:', JSON.stringify({
+        console.log('Making POST request to Modal API...')
+        const requestPayload = {
           text: body.text,
           samples: body.samples || [],
-        }, null, 2))
+        }
+        console.log('Request payload:', JSON.stringify(requestPayload, null, 2))
         
-        // Try the correct Modal endpoint URL
         const modalResponse = await fetch(modalUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            text: body.text,
-            samples: body.samples || [],
-          }),
+          body: JSON.stringify(requestPayload),
           signal: controller.signal
         })
 
