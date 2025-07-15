@@ -108,7 +108,17 @@ serve(async (req) => {
           await new Promise(resolve => setTimeout(resolve, 2000 * attempt))
         }
       } catch (modalError) {
-        console.log(`Modal API attempt ${attempt} failed:`, modalError.message)
+        console.error(`Modal API attempt ${attempt} failed:`, {
+          message: modalError.message,
+          name: modalError.name,
+          stack: modalError.stack,
+          cause: modalError.cause
+        })
+        
+        // Check if it's a timeout
+        if (modalError.name === 'AbortError') {
+          console.log('Modal API call timed out after 45 seconds')
+        }
         
         // If it's the last attempt, fall back to local generation
         if (attempt === maxRetries) {
