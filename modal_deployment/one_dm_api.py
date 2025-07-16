@@ -347,60 +347,61 @@ async def generate_diffusion_handwriting(text: str, samples: List[str], model: d
                     break
             
             if inference_script:
-                # Prepare arguments for DiffusionPen inference
-                cmd = [
-                    "python", inference_script,
-                    "--text", text,
-                    "--style_dir", style_dir,
-                    "--output_dir", output_dir,
-                    "--device", device
-                ]
-                
-                # Use trained model if available
-                if trained_model_path:
-                    cmd.extend(["--model_path", trained_model_path])
-                
-                # Add style parameters if provided
-                if style_params:
-                    if "slant" in style_params:
-                        cmd.extend(["--slant", str(style_params["slant"])])
-                    if "spacing" in style_params:
-                        cmd.extend(["--spacing", str(style_params["spacing"])])
-                
-                print(f"Running DiffusionPen inference: {' '.join(cmd)}")
-                
-                # Run DiffusionPen inference
-                result = subprocess.run(
-                    cmd, 
-                    cwd=diffusionpen_path,
-                    capture_output=True, 
-                    text=True,
-                    timeout=300  # 5 minutes timeout for training + inference
-                )
-                
-                if result.returncode == 0:
-                    print("DiffusionPen inference completed successfully")
-                    print(f"stdout: {result.stdout}")
+                try:
+                    # Prepare arguments for DiffusionPen inference
+                    cmd = [
+                        "python", inference_script,
+                        "--text", text,
+                        "--style_dir", style_dir,
+                        "--output_dir", output_dir,
+                        "--device", device
+                    ]
                     
-                    # Look for generated output
-                    output_files = [f for f in os.listdir(output_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
-                    if output_files:
-                        output_path = os.path.join(output_dir, output_files[0])
-                        generated_image = Image.open(output_path)
-                        print(f"Loaded generated image from {output_path}: {generated_image.size}")
-                        return generated_image  # Return the trained personalized result
-                else:
-                    print(f"DiffusionPen inference failed with return code {result.returncode}")
-                    print(f"stdout: {result.stdout}")
-                    print(f"stderr: {result.stderr}")
+                    # Use trained model if available
+                    if trained_model_path:
+                        cmd.extend(["--model_path", trained_model_path])
+                    
+                    # Add style parameters if provided
+                    if style_params:
+                        if "slant" in style_params:
+                            cmd.extend(["--slant", str(style_params["slant"])])
+                        if "spacing" in style_params:
+                            cmd.extend(["--spacing", str(style_params["spacing"])])
+                    
+                    print(f"Running DiffusionPen inference: {' '.join(cmd)}")
+                    
+                    # Run DiffusionPen inference
+                    result = subprocess.run(
+                        cmd, 
+                        cwd=diffusionpen_path,
+                        capture_output=True, 
+                        text=True,
+                        timeout=300  # 5 minutes timeout for training + inference
+                    )
+                    
+                    if result.returncode == 0:
+                        print("DiffusionPen inference completed successfully")
+                        print(f"stdout: {result.stdout}")
+                        
+                        # Look for generated output
+                        output_files = [f for f in os.listdir(output_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
+                        if output_files:
+                            output_path = os.path.join(output_dir, output_files[0])
+                            generated_image = Image.open(output_path)
+                            print(f"Loaded generated image from {output_path}: {generated_image.size}")
+                            return generated_image  # Return the trained personalized result
+                    else:
+                        print(f"DiffusionPen inference failed with return code {result.returncode}")
+                        print(f"stdout: {result.stdout}")
+                        print(f"stderr: {result.stderr}")
+                        
+                except Exception as diffusion_error:
+                    print(f"Error running DiffusionPen inference: {diffusion_error}")
+                    import traceback
+                    traceback.print_exc()
                     
             else:
                 print("No DiffusionPen inference script found - this is expected until we add the proper training scripts")
-                
-        except Exception as diffusion_error:
-            print(f"Error running DiffusionPen inference: {diffusion_error}")
-            import traceback
-            traceback.print_exc()
             
             # Fallback to Stable Diffusion pipeline with improved prompts
             print("Falling back to Stable Diffusion pipeline with improved prompts")
