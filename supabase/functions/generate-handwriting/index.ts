@@ -98,6 +98,21 @@ serve(async (req) => {
           console.log(`Modal API call successful on attempt ${attempt}`)
           console.log('Modal response data:', JSON.stringify(modalData, null, 2))
           console.log('Modal handwritingSvg length:', modalData.handwritingSvg?.length || 'undefined')
+          
+          // Check if we got actual handwriting or a placeholder/error image
+          if (modalData.handwritingSvg) {
+            const svgContent = modalData.handwritingSvg
+            const containsHandwriting = svgContent.includes('<path') || svgContent.includes('stroke') || svgContent.includes('text')
+            const containsPen = svgContent.includes('pen') || svgContent.includes('marker')
+            console.log('SVG contains handwriting paths:', containsHandwriting)
+            console.log('SVG contains pen/marker:', containsPen)
+            console.log('SVG preview (first 300 chars):', svgContent.substring(0, 300))
+            
+            if (containsPen && !containsHandwriting) {
+              console.log('WARNING: Modal API returned pen/marker placeholder instead of handwriting')
+            }
+          }
+          
           console.log('Modal styleCharacteristics:', modalData.styleCharacteristics)
           
           const responseData = {
