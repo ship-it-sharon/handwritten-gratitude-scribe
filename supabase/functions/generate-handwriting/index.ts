@@ -47,6 +47,8 @@ serve(async (req) => {
     const samples = body.samples || [];
     
     console.log(`Generating handwriting for: "${body.text}" with ${samples.length} reference samples`)
+    console.log('Raw samples received:', JSON.stringify(body.samples?.slice(0, 2)?.map(s => s?.substring(0, 50)) || [], null, 2))
+    console.log('Samples array check:', Array.isArray(body.samples), 'Length:', body.samples?.length || 0)
 
     // Try to call Modal API with retries (Modal apps go idle and need warmup time)
     const maxRetries = 3
