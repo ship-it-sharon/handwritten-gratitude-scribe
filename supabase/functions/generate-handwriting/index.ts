@@ -43,17 +43,74 @@ serve(async (req) => {
       )
     }
 
-    console.log(`Generating handwriting for: "${body.text}" with ${body.samples?.length || 0} reference samples`)
+    // Extract samples from request
+    const samples = body.samples || [];
+    
+    console.log(`Generating handwriting for: "${body.text}" with ${samples.length} reference samples`)
 
     // Try to call Modal API with retries (Modal apps go idle and need warmup time)
-    const maxRetries = 3 // Increase retries for cold starts
-    const timeoutMs = 120000 // Increase to 2 minutes for Modal cold start
-
+    const maxRetries = 3
+    const timeoutMs = 120000 // 2 minutes for Modal cold start
+    
     console.log('=== STARTING MODAL API ATTEMPTS ===')
+    
+    let modelId = null;
+    
+    // Step 1: Train style encoder if samples are provided
+    if (samples.length > 0) {
+      console.log(`Training style encoder with ${samples.length} samples...`);
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          console.log(`Attempting training API call (attempt ${attempt}/${maxRetries})...`)
+          
+          const trainingUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/train_style'
+          console.log(`Training URL: ${trainingUrl}`)
+          
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+          
+          const trainingPayload = {
+            samples: samples,
+            user_id: `user_${Date.now()}` // Generate a simple user ID
+          }
+          
+          const trainingResponse = await fetch(trainingUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(trainingPayload),
+            signal: controller.signal
+          })
 
+          clearTimeout(timeoutId)
+
+          if (trainingResponse.ok) {
+            const trainingData = await trainingResponse.json()
+            modelId = trainingData.model_id
+            console.log(`Style encoder training completed successfully on attempt ${attempt}`)
+            console.log(`Model ID: ${modelId}`)
+            break
+          } else {
+            console.log(`Training attempt ${attempt} failed with status: ${trainingResponse.status}`)
+            if (attempt === maxRetries) {
+              console.log('Training failed after all attempts, proceeding with fallback generation')
+            }
+          }
+        } catch (error) {
+          console.log(`Training attempt ${attempt} failed with error: ${error}`)
+          if (attempt === maxRetries) {
+            console.log('Training failed after all attempts, proceeding with fallback generation')
+          }
+        }
+      }
+    }
+    
+    // Step 2: Generate handwriting using trained model or fallback
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`Attempting Modal API call (attempt ${attempt}/${maxRetries})...`)
+        console.log(`Attempting generation API call (attempt ${attempt}/${maxRetries})...`)
         
         const modalUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/generate_handwriting'
         console.log(`Modal URL: ${modalUrl}`)
@@ -76,7 +133,8 @@ serve(async (req) => {
         console.log('Making POST request to Modal API...')
         const requestPayload = {
           text: body.text,
-          samples: body.samples || [],
+          model_id: modelId,
+          styleCharacteristics: body.styleCharacteristics || {}
         }
         console.log('Request payload:', JSON.stringify(requestPayload, null, 2))
         
@@ -117,6 +175,7 @@ serve(async (req) => {
           
           const responseData = {
             handwritingSvg: modalData.handwritingSvg,
+            model_id: modelId,
             styleCharacteristics: modalData.styleCharacteristics || {
               slant: 0.15,
               spacing: 1.1,
@@ -152,7 +211,7 @@ serve(async (req) => {
         
         // Check if it's a timeout
         if (modalError.name === 'AbortError') {
-          console.log('Modal API call timed out after 45 seconds')
+          console.log('Modal API call timed out after 2 minutes')
         }
         
         // If it's the last attempt, fall back to local generation
