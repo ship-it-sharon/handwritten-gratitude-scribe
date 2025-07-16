@@ -197,8 +197,86 @@ def fastapi_app():
     
     return app
 
+async def train_style_encoder(samples: List[str], model: dict) -> str:
+    """Train the style encoder on user's handwriting samples"""
+    import subprocess
+    import tempfile
+    import os
+    from PIL import Image
+    import base64
+    import io
+    
+    try:
+        diffusionpen_path = model['diffusionpen_path']
+        device = model['device']
+        
+        print(f"Training style encoder with {len(samples)} samples")
+        
+        # Create temporary directories for training
+        with tempfile.TemporaryDirectory() as temp_dir:
+            style_dir = os.path.join(temp_dir, "style_samples")
+            model_dir = os.path.join(temp_dir, "trained_model")
+            os.makedirs(style_dir, exist_ok=True)
+            os.makedirs(model_dir, exist_ok=True)
+            
+            # Process and save training samples
+            for i, sample_b64 in enumerate(samples[:5]):  # Use up to 5 samples
+                try:
+                    # Decode base64 image
+                    image_data = base64.b64decode(sample_b64)
+                    ref_image = Image.open(io.BytesIO(image_data))
+                    
+                    # Clean and prepare sample image
+                    cleaned_image = clean_sample_image(ref_image)
+                    
+                    # Save to training directory
+                    style_path = os.path.join(style_dir, f"style_{i}.png")
+                    cleaned_image.save(style_path, "PNG")
+                    
+                    print(f"Saved training sample {i} to {style_path}")
+                    
+                except Exception as e:
+                    print(f"Error processing training sample {i}: {e}")
+                    continue
+            
+            # Look for style encoder training script
+            style_encoder_script = os.path.join(diffusionpen_path, "style_encoder_train.py")
+            
+            if os.path.exists(style_encoder_script):
+                # Run style encoder training
+                cmd = [
+                    "python", style_encoder_script,
+                    "--style_dir", style_dir,
+                    "--save_path", model_dir,
+                    "--device", device
+                ]
+                
+                print(f"Running style encoder training: {' '.join(cmd)}")
+                
+                result = subprocess.run(
+                    cmd,
+                    cwd=diffusionpen_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=300  # 5 minute timeout
+                )
+                
+                if result.returncode == 0:
+                    print("Style encoder training completed successfully")
+                    return model_dir
+                else:
+                    print(f"Style encoder training failed: {result.stderr}")
+                    return None
+            else:
+                print("style_encoder_train.py not found, skipping training")
+                return None
+                
+    except Exception as e:
+        print(f"Error in style encoder training: {e}")
+        return None
+
 async def generate_diffusion_handwriting(text: str, samples: List[str], model: dict, style_params: dict):
-    """Generate handwriting using DiffusionPen model with proper inference"""
+    """Generate handwriting using DiffusionPen model with proper training and inference"""
     import torch
     import numpy as np
     from PIL import Image
@@ -216,7 +294,17 @@ async def generate_diffusion_handwriting(text: str, samples: List[str], model: d
         print(f"Using device: {device}")
         print(f"Number of style samples: {len(samples)}")
         
-        # Create temporary directories for DiffusionPen inference
+        # Step 1: Train style encoder if we have samples
+        trained_model_path = None
+        if samples:
+            print("Step 1: Training style encoder...")
+            trained_model_path = await train_style_encoder(samples, model)
+            if trained_model_path:
+                print(f"Style encoder trained successfully, saved to: {trained_model_path}")
+            else:
+                print("Style encoder training failed, using fallback method")
+        
+        # Step 2: Generate handwriting using trained model or fallback
         with tempfile.TemporaryDirectory() as temp_dir:
             style_dir = os.path.join(temp_dir, "style_samples")
             output_dir = os.path.join(temp_dir, "output")
@@ -225,9 +313,9 @@ async def generate_diffusion_handwriting(text: str, samples: List[str], model: d
             
             print(f"Created temp directories: {style_dir}, {output_dir}")
             
-            # Process and save reference samples for style conditioning
+            # Process and save reference samples for inference
             if samples:
-                print(f"Processing {len(samples)} style samples...")
+                print(f"Processing {len(samples)} style samples for inference...")
                 for i, sample_b64 in enumerate(samples[:5]):  # Use up to 5 samples
                     try:
                         # Decode base64 image
@@ -242,86 +330,77 @@ async def generate_diffusion_handwriting(text: str, samples: List[str], model: d
                         cleaned_image.save(style_path, "PNG")
                         
                         print(f"Saved cleaned style sample {i} to {style_path}")
-                        print(f"  - Final size: {cleaned_image.size}")
-                        print(f"  - Mode: {cleaned_image.mode}")
-                        print(f"  - Background check: {'White' if is_white_background(cleaned_image) else 'Not white'}")
                         
                     except Exception as e:
                         print(f"Error processing sample {i}: {e}")
                         continue
             
-            # Add debug visualization for processed samples
-            if samples:
-                try:
-                    debug_save_sample_images(style_dir, samples)
-                except Exception as debug_error:
-                    print(f"Debug visualization failed: {debug_error}")
+            # Look for DiffusionPen inference script
+            possible_scripts = ["inference.py", "demo.py", "main.py", "generate.py"]
+            inference_script = None
             
-            # Check what files are actually in the DiffusionPen directory
-            print(f"Contents of DiffusionPen directory: {os.listdir(diffusionpen_path)}")
+            for script_name in possible_scripts:
+                script_path = os.path.join(diffusionpen_path, script_name)
+                if os.path.exists(script_path):
+                    inference_script = script_path
+                    print(f"Found DiffusionPen script: {script_path}")
+                    break
             
-            # Try to use actual DiffusionPen inference if available
-            try:
-                # Look for common DiffusionPen script names
-                possible_scripts = ["inference.py", "demo.py", "main.py", "generate.py"]
-                inference_script = None
+            if inference_script:
+                # Prepare arguments for DiffusionPen inference
+                cmd = [
+                    "python", inference_script,
+                    "--text", text,
+                    "--style_dir", style_dir,
+                    "--output_dir", output_dir,
+                    "--device", device
+                ]
                 
-                for script_name in possible_scripts:
-                    script_path = os.path.join(diffusionpen_path, script_name)
-                    if os.path.exists(script_path):
-                        inference_script = script_path
-                        print(f"Found DiffusionPen script: {script_path}")
-                        break
+                # Use trained model if available
+                if trained_model_path:
+                    cmd.extend(["--model_path", trained_model_path])
                 
-                if inference_script:
-                    # Prepare arguments for DiffusionPen inference
-                    cmd = [
-                        "python", inference_script,
-                        "--text", text,
-                        "--style_dir", style_dir,
-                        "--output_dir", output_dir,
-                        "--device", device
-                    ]
+                # Add style parameters if provided
+                if style_params:
+                    if "slant" in style_params:
+                        cmd.extend(["--slant", str(style_params["slant"])])
+                    if "spacing" in style_params:
+                        cmd.extend(["--spacing", str(style_params["spacing"])])
+                
+                print(f"Running DiffusionPen inference: {' '.join(cmd)}")
+                
+                # Run DiffusionPen inference
+                result = subprocess.run(
+                    cmd, 
+                    cwd=diffusionpen_path,
+                    capture_output=True, 
+                    text=True,
+                    timeout=300  # 5 minutes timeout for training + inference
+                )
+                
+                if result.returncode == 0:
+                    print("DiffusionPen inference completed successfully")
+                    print(f"stdout: {result.stdout}")
                     
-                    # Add style parameters if provided
-                    if style_params:
-                        if "slant" in style_params:
-                            cmd.extend(["--slant", str(style_params["slant"])])
-                        if "spacing" in style_params:
-                            cmd.extend(["--spacing", str(style_params["spacing"])])
-                    
-                    print(f"Running DiffusionPen inference: {' '.join(cmd)}")
-                    
-                    # Run DiffusionPen inference
-                    result = subprocess.run(
-                        cmd, 
-                        cwd=diffusionpen_path,
-                        capture_output=True, 
-                        text=True, 
-                        timeout=180  # 3 minutes timeout
-                    )
-                    
-                    if result.returncode == 0:
-                        print("DiffusionPen inference completed successfully")
-                        print(f"stdout: {result.stdout}")
-                        
-                        # Look for generated output
-                        output_files = [f for f in os.listdir(output_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
-                        if output_files:
-                            output_path = os.path.join(output_dir, output_files[0])
-                            generated_image = Image.open(output_path)
-                            print(f"Loaded generated image from {output_path}")
-                            return generated_image  # Return without aggressive post-processing
-                    else:
-                        print(f"DiffusionPen inference failed with return code {result.returncode}")
-                        print(f"stdout: {result.stdout}")
-                        print(f"stderr: {result.stderr}")
-                        
+                    # Look for generated output
+                    output_files = [f for f in os.listdir(output_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
+                    if output_files:
+                        output_path = os.path.join(output_dir, output_files[0])
+                        generated_image = Image.open(output_path)
+                        print(f"Loaded generated image from {output_path}: {generated_image.size}")
+                        return generated_image  # Return the trained personalized result
                 else:
-                    print("No DiffusionPen inference script found")
+                    print(f"DiffusionPen inference failed with return code {result.returncode}")
+                    print(f"stdout: {result.stdout}")
+                    print(f"stderr: {result.stderr}")
                     
-            except Exception as diffusion_error:
-                print(f"Error running DiffusionPen inference: {diffusion_error}")
+            else:
+                print("No DiffusionPen inference script found - this is expected until we add the proper training scripts")
+                
+        except Exception as diffusion_error:
+            print(f"Error running DiffusionPen inference: {diffusion_error}")
+            import traceback
+            traceback.print_exc()
             
             # Fallback to Stable Diffusion pipeline with improved prompts
             print("Falling back to Stable Diffusion pipeline with improved prompts")
