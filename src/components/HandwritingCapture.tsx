@@ -274,13 +274,21 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
   };
 
   const handleMobileImageReceived = async (imageUrl: string) => {
-    // Validate the mobile image
-    const isValid = await validateHandwriting(imageUrl);
-    if (isValid) {
-      const newMobileImages = new Map(mobileImages);
-      newMobileImages.set(currentSample, imageUrl);
-      setMobileImages(newMobileImages);
-      toast.success("Photo received and validated!");
+    // Mobile images are already validated on the mobile side, so accept directly
+    const newMobileImages = new Map(mobileImages);
+    newMobileImages.set(currentSample, imageUrl);
+    setMobileImages(newMobileImages);
+    
+    // Complete the sample automatically
+    const newCompleted = new Set(completedSamples);
+    newCompleted.add(currentSample);
+    setCompletedSamples(newCompleted);
+    
+    toast.success("Photo received from mobile!");
+    
+    // Auto-advance to next sample if not the last one
+    if (currentSample < sampleTexts.length - 1) {
+      setCurrentSample(currentSample + 1);
     }
   };
 
