@@ -14,11 +14,11 @@ interface HandwritingCaptureProps {
 }
 
 const sampleTexts = [
-  "The quick brown fox jumps over the lazy dog",
-  "Thank you so much for your kindness",
-  "With love and appreciation",
-  "Sincerely yours",
-  "Best wishes and warm regards"
+  "The quick brown fox jumps over the lazy dog.",
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ 1234567890",
+  "Thank you so much! How are you? I'm fine, thanks.",
+  "With love & appreciation - it's wonderful to see you.",
+  "Best wishes: sincerely yours (always & forever)"
 ];
 
 export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
