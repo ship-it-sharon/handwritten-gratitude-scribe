@@ -46,8 +46,8 @@ serve(async (req) => {
     console.log(`Generating handwriting for: "${body.text}" with ${body.samples?.length || 0} reference samples`)
 
     // Try to call Modal API with retries (Modal apps go idle and need warmup time)
-    const maxRetries = 1 // Reduce retries to see failure faster
-    const timeoutMs = 10000 // Reduce to 10 seconds to see timeout faster
+    const maxRetries = 3 // Increase retries for cold starts
+    const timeoutMs = 120000 // Increase to 2 minutes for Modal cold start
 
     console.log('=== STARTING MODAL API ATTEMPTS ===')
 
