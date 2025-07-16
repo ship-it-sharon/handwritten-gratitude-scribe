@@ -57,7 +57,10 @@ serve(async (req) => {
     let modelId = null;
     
     // Step 1: Train style encoder if samples are provided
+    console.log(`Samples check: length=${samples.length}, samples exist=${!!samples}`);
+    
     if (samples.length > 0) {
+      console.log(`=== STARTING TRAINING STEP ===`);
       console.log(`Training style encoder with ${samples.length} samples...`);
       
       for (let attempt = 1; attempt <= maxRetries; attempt++) {

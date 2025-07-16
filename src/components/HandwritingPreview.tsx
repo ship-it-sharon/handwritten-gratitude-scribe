@@ -42,10 +42,24 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
 
     setIsGenerating(true);
     try {
+      // Convert all samples to base64 strings
+      const base64Samples: string[] = [];
+      for (const sample of samples) {
+        if (typeof sample === 'string') {
+          base64Samples.push(sample);
+        } else if (sample instanceof HTMLCanvasElement) {
+          // Convert canvas to base64
+          const base64 = sample.toDataURL('image/png');
+          base64Samples.push(base64);
+        }
+      }
+      
+      console.log(`Converting ${samples.length} samples to base64, got ${base64Samples.length} strings`);
+      
       const svg = await generateHandwritingStyle(
         text, 
         style || handwritingStyle!, 
-        samples.filter(s => typeof s === 'string') as string[]
+        base64Samples
       );
       setGeneratedSvg(svg);
     } catch (error) {
