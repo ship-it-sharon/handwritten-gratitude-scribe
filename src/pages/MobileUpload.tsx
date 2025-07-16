@@ -91,7 +91,7 @@ const MobileUpload = () => {
     }
   };
 
-  const acceptValidationOverride = () => {
+  const acceptValidationOverride = async () => {
     if (validationResult?.originalImageData) {
       setUploadedImage(validationResult.originalImageData);
       setValidationResult(null);
@@ -99,6 +99,9 @@ const MobileUpload = () => {
         title: "Photo accepted!",
         description: "Your handwriting sample has been accepted"
       });
+      
+      // Automatically proceed to upload after accepting override
+      await submitUploadWithImage(validationResult.originalImageData);
     }
   };
 
@@ -146,6 +149,9 @@ const MobileUpload = () => {
           title: "Photo validated!",
           description: "Your handwriting sample looks good"
         });
+        
+        // Automatically proceed to upload after successful validation
+        await submitUploadWithImage(result);
       } else {
         // Only reset if this is not an override case
         if (!validationResult || !validationResult.isHandwriting || validationResult.textMatches || !validationResult.extractedText) {
@@ -170,16 +176,16 @@ const MobileUpload = () => {
     }
   };
 
-  const submitUpload = async () => {
-    if (!uploadedImage || !sessionId) {
-      console.error('Missing required data:', { uploadedImage: !!uploadedImage, sessionId });
+  const submitUploadWithImage = async (imageData: string) => {
+    if (!sessionId) {
+      console.error('Missing session ID');
       return;
     }
 
     console.log('=== MOBILE UPLOAD DEBUG ===');
     console.log('Session ID:', sessionId);
     console.log('Sample Text:', sampleText);
-    console.log('Image size:', uploadedImage.length, 'characters');
+    console.log('Image size:', imageData.length, 'characters');
     
     setIsUploading(true);
     
@@ -189,7 +195,7 @@ const MobileUpload = () => {
         .from('mobile_uploads')
         .upsert({
           session_id: sessionId,
-          image_data: uploadedImage,
+          image_data: imageData,
           sample_text: sampleText
         }, {
           onConflict: 'session_id'
@@ -224,6 +230,15 @@ const MobileUpload = () => {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const submitUpload = async () => {
+    if (!uploadedImage) {
+      console.error('No uploaded image available');
+      return;
+    }
+    
+    await submitUploadWithImage(uploadedImage);
   };
 
   const removeImage = () => {
