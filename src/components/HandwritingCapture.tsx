@@ -714,7 +714,7 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
                     </Card>
                   ) : (
                     <MobileUploadSidecar
-                      sessionId={sessionId}
+                      sessionId={`${sessionId}-sample-${currentSample}`}
                       sampleText={sampleTexts[currentSample]}
                       onImageReceived={handleMobileImageReceived}
                       completed={false}
