@@ -274,21 +274,33 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
   };
 
   const handleMobileImageReceived = async (imageUrl: string) => {
+    console.log('🎯 handleMobileImageReceived called!');
+    console.log('📸 Image URL length:', imageUrl.length);
+    console.log('📊 Current sample:', currentSample);
+    console.log('🔄 Mobile images before:', Array.from(mobileImages.keys()));
+    
     // Mobile images are already validated on the mobile side, so accept directly
     const newMobileImages = new Map(mobileImages);
     newMobileImages.set(currentSample, imageUrl);
     setMobileImages(newMobileImages);
+    
+    console.log('🔄 Mobile images after:', Array.from(newMobileImages.keys()));
     
     // Complete the sample automatically
     const newCompleted = new Set(completedSamples);
     newCompleted.add(currentSample);
     setCompletedSamples(newCompleted);
     
+    console.log('✅ Completed samples:', Array.from(newCompleted));
+    
     toast.success("Photo received from mobile!");
     
     // Auto-advance to next sample if not the last one
     if (currentSample < sampleTexts.length - 1) {
+      console.log('➡️ Auto-advancing to next sample');
       setCurrentSample(currentSample + 1);
+    } else {
+      console.log('🏁 This was the last sample');
     }
   };
 

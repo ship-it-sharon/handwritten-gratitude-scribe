@@ -64,6 +64,7 @@ export const MobileUploadSidecar = ({
         console.log('Session ID:', sessionId);
         console.log('Polling active:', isPolling);
         console.log('Completed:', completed);
+        console.log('Looking for uploads...');
         
         const { data, error } = await supabase
           .from('mobile_uploads')
@@ -81,6 +82,8 @@ export const MobileUploadSidecar = ({
 
         if (data && data.image_data) {
           console.log('📸 Image found in Supabase! ID:', data.id);
+          console.log('📱 Calling onImageReceived with image data length:', data.image_data.length);
+          console.log('📱 Session ID that worked:', data.session_id);
           onImageReceived(data.image_data);
           setIsPolling(false);
           
