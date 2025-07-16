@@ -135,6 +135,19 @@ def fastapi_app():
             traceback.print_exc()
             raise e
     
+    @app.get("/generate_handwriting")
+    async def generate_handwriting_info():
+        """Handle GET requests to provide API information"""
+        return JSONResponse({
+            "message": "This endpoint accepts POST requests only",
+            "method": "POST",
+            "expected_payload": {
+                "text": "string (required)",
+                "samples": "array of base64 images (optional)",
+                "styleCharacteristics": "object (optional)"
+            }
+        })
+    
     @app.post("/generate_handwriting")
     async def generate_handwriting_endpoint(request: Request):
         try:
