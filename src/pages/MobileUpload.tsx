@@ -152,6 +152,8 @@ const MobileUpload = () => {
         
         // Automatically proceed to upload after successful validation
         await submitUploadWithImage(result);
+        // Don't show the upload button UI since we've already uploaded
+        return;
       } else {
         // Only reset if this is not an override case
         if (!validationResult || !validationResult.isHandwriting || validationResult.textMatches || !validationResult.extractedText) {
