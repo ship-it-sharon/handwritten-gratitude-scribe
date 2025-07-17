@@ -338,19 +338,16 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
                 except Exception as e:
                     print(f"Could not get help for style encoder script: {e}")
                 
-                # Use best DiffusionPen model for optimal quality results
+                # Use conservative DiffusionPen arguments (verified to exist)
                 cmd = [
                     "python", style_encoder_script,
-                    "--model", "resnet50",  # Higher quality model for best results
-                    "--dataset", "iam",  # Required dataset parameter
-                    "--batch_size", "16",  # Reduced batch size for A100 optimization
-                    "--epochs", "20",  # More epochs for better style learning
-                    "--lr", "0.001",  # Optimal learning rate for few-shot learning
+                    "--model", "resnet50",  # Higher quality model
+                    "--dataset", "iam",  # Required dataset parameter  
+                    "--batch_size", "16",  # Reduced batch size for A100
+                    "--epochs", "20",  # More epochs for better learning
                     "--device", device,
                     "--save_path", model_dir,
-                    "--mode", "mixed",  # DiffusionPen's hybrid approach
-                    "--augment",  # Enable data augmentation for better generalization
-                    "--early_stopping"  # Prevent overfitting
+                    "--mode", "mixed"  # DiffusionPen's hybrid approach
                 ]
                 
                 print(f"Running DiffusionPen style training: {' '.join(cmd)}")

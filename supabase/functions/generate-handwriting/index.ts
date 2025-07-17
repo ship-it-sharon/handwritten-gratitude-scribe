@@ -107,8 +107,8 @@ serve(async (req) => {
           } else {
             console.log("Created training record:", newModel?.model_id);
             
-            // Use background processing for training to prevent timeout
-            EdgeRuntime.waitUntil(trainModelInBackground(supabase, samples, userId, newModelId));
+            // Start background training without blocking response
+            trainModelInBackground(supabase, samples, userId, newModelId);
             
             // Return immediately while training happens in background
             return new Response(JSON.stringify({
