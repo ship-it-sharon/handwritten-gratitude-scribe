@@ -77,7 +77,7 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
       try {
         // Load user's saved samples if authenticated
         if (user) {
-          console.log('🔍 Loading existing user samples...');
+          console.log('🔍 Loading existing user samples for user:', user.id);
           const { data, error } = await supabase
             .from('user_style_models')
             .select('sample_images')
@@ -85,6 +85,8 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
             .order('created_at', { ascending: false })
             .limit(1)
             .single();
+
+          console.log('📊 Database query result:', { data, error, userId: user.id });
 
           if (data?.sample_images && !error && Array.isArray(data.sample_images)) {
             console.log('✅ Found saved samples:', data.sample_images.length);
@@ -103,6 +105,10 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
             setCompletedSamples(newCompleted);
             toast.success(`Loaded ${newCompleted.size} existing handwriting samples!`);
             return;
+          } else if (error) {
+            console.log('⚠️ No saved samples found:', error.message);
+          } else {
+            console.log('⚠️ No saved samples in database');
           }
         }
 
