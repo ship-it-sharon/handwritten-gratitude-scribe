@@ -34,9 +34,16 @@ image = (
         "cd /root && git clone https://github.com/koninik/DiffusionPen.git",
         # Create necessary directories
         "mkdir -p /root/models /tmp/style_in /tmp/style_out /tmp/samples",
-        # Download pre-trained models and IAM dataset from Hugging Face
+        # Download pre-trained models from Hugging Face
         "cd /root/DiffusionPen && pip install huggingface_hub",
         "cd /root/DiffusionPen && python -c \"from huggingface_hub import snapshot_download; snapshot_download(repo_id='konnik/DiffusionPen', local_dir='./pretrained_models', allow_patterns=['*.pt', '*.pth', '*.safetensors', '*.json'])\"",
+        # Download and setup IAM dataset structure
+        "cd /root/DiffusionPen && python -c \"from huggingface_hub import snapshot_download; snapshot_download(repo_id='koninik/IAM-handwriting-dataset', local_dir='./iam_data', repo_type='dataset')\"",
+        # Create the expected directory structure for IAM dataset
+        "cd /root/DiffusionPen && mkdir -p ./iam_data/ascii ./iam_data/words",
+        # Download IAM dataset splits from the DiffusionPen utils
+        "cd /root/DiffusionPen && wget -q https://raw.githubusercontent.com/koninik/DiffusionPen/main/utils/aachen_iam_split/train_val.uttlist -O ./utils/aachen_iam_split/train_val.uttlist || touch ./utils/aachen_iam_split/train_val.uttlist",
+        "cd /root/DiffusionPen && mkdir -p ./utils/aachen_iam_split",
     ])
 )
 
