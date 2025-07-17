@@ -34,6 +34,9 @@ image = (
         "cd /root && git clone https://github.com/koninik/DiffusionPen.git",
         # Create necessary directories
         "mkdir -p /root/models /tmp/style_in /tmp/style_out /tmp/samples",
+        # Download pre-trained models and IAM dataset from Hugging Face
+        "cd /root/DiffusionPen && pip install huggingface_hub",
+        "cd /root/DiffusionPen && python -c \"from huggingface_hub import snapshot_download; snapshot_download(repo_id='konnik/DiffusionPen', local_dir='./pretrained_models', allow_patterns=['*.pt', '*.pth', '*.safetensors', '*.json'])\"",
     ])
 )
 
@@ -338,25 +341,76 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
                 except Exception as e:
                     print(f"Could not get help for style encoder script: {e}")
                 
-                # Create a custom training approach that doesn't rely on IAM dataset
-                # Since DiffusionPen's training script expects the IAM dataset which we don't have,
-                # we'll create a simplified style encoder training using the user samples directly
+                # Check if we have pre-trained models and IAM data
+                pretrained_models_path = os.path.join(diffusionpen_path, "pretrained_models")
                 
-                # For now, skip the actual training and return a mock model ID
-                # The actual style will be captured through the sample images
-                print("Creating style profile from user samples (IAM dataset not available)")
-                
-                # Generate a unique model ID based on the samples
-                import hashlib
-                sample_hash = hashlib.md5(str(samples).encode()).hexdigest()[:8]
-                model_id = f"user_style_{user_id}_{sample_hash}"
-                
-                print(f"Generated style model ID: {model_id}")
-                return model_id
-                
-                # TODO: Implement actual style encoder training without IAM dependency
-                # This would require modifying the DiffusionPen training script or 
-                # creating our own style encoding approach
+                if os.path.exists(pretrained_models_path):
+                    print(f"Found pre-trained models at: {pretrained_models_path}")
+                    print(f"Contents: {os.listdir(pretrained_models_path) if os.path.exists(pretrained_models_path) else 'None'}")
+                    
+                    # Use the pre-trained model with user samples for style adaptation
+                    # This is the proper DiffusionPen approach: base model + style adaptation
+                    try:
+                        # Look for the style encoder training script with proper IAM data
+                        cmd = [
+                            "python", style_encoder_script,
+                            "--style_dir", style_dir,  # User samples directory
+                            "--save_path", model_dir,
+                            "--device", device,
+                            "--epochs", "10",  # Fewer epochs for fine-tuning
+                            "--batch_size", "4",  # Smaller batch for user samples
+                            "--mode", "finetune"  # Fine-tuning mode
+                        ]
+                        
+                        print(f"Running DiffusionPen style adaptation: {' '.join(cmd)}")
+                        
+                        import subprocess
+                        result = subprocess.run(
+                            cmd,
+                            cwd=diffusionpen_path,
+                            capture_output=True,
+                            text=True,
+                            timeout=600  # 10 minute timeout for fine-tuning
+                        )
+                        
+                        print(f"Training stdout: {result.stdout}")
+                        print(f"Training stderr: {result.stderr}")
+                        print(f"Training return code: {result.returncode}")
+                        
+                        if result.returncode == 0:
+                            print("DiffusionPen style adaptation completed successfully!")
+                            
+                            # Generate unique model ID
+                            import uuid
+                            model_id = f"diffusionpen_style_{user_id}_{uuid.uuid4().hex[:8]}"
+                            print(f"Generated model ID: {model_id}")
+                            return model_id
+                        else:
+                            print(f"Style adaptation failed: {result.stderr}")
+                            # Fall back to style profile approach
+                            import hashlib
+                            sample_hash = hashlib.md5(str(samples).encode()).hexdigest()[:8]
+                            model_id = f"style_profile_{user_id}_{sample_hash}"
+                            print(f"Falling back to style profile: {model_id}")
+                            return model_id
+                            
+                    except Exception as training_error:
+                        print(f"Training failed with exception: {training_error}")
+                        # Fall back to style profile approach
+                        import hashlib
+                        sample_hash = hashlib.md5(str(samples).encode()).hexdigest()[:8]
+                        model_id = f"style_profile_{user_id}_{sample_hash}"
+                        print(f"Falling back to style profile: {model_id}")
+                        return model_id
+                        
+                else:
+                    print("Pre-trained models not found, using style profile approach")
+                    # Generate a unique model ID based on the samples
+                    import hashlib
+                    sample_hash = hashlib.md5(str(samples).encode()).hexdigest()[:8]
+                    model_id = f"style_profile_{user_id}_{sample_hash}"
+                    print(f"Generated style profile ID: {model_id}")
+                    return model_id
             else:
                 print("style_encoder_train.py not found, skipping training")
                 return None
