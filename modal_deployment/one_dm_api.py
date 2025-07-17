@@ -34,16 +34,19 @@ image = (
         "cd /root && git clone https://github.com/koninik/DiffusionPen.git",
         # Create necessary directories
         "mkdir -p /root/models /tmp/style_in /tmp/style_out /tmp/samples",
-        # Download pre-trained models from Hugging Face
+        # Download pre-processed IAM dataset and models from Hugging Face
         "cd /root/DiffusionPen && pip install huggingface_hub",
-        "cd /root/DiffusionPen && python -c \"from huggingface_hub import snapshot_download; snapshot_download(repo_id='konnik/DiffusionPen', local_dir='./pretrained_models', allow_patterns=['*.pt', '*.pth', '*.safetensors', '*.json'])\"",
-        # Create mock IAM dataset structure to avoid FileNotFoundError
+        # Download the complete DiffusionPen repository with datasets and models
+        "cd /root/DiffusionPen && python -c \"from huggingface_hub import snapshot_download; snapshot_download(repo_id='konnik/DiffusionPen', local_dir='./datasets_and_models')\"",
+        # Create the expected directory structure and move files
+        "cd /root/DiffusionPen && cp -r ./datasets_and_models/saved_iam_data ./saved_iam_data || mkdir -p ./saved_iam_data",
+        "cd /root/DiffusionPen && cp -r ./datasets_and_models/style_models ./style_models || mkdir -p ./style_models", 
+        "cd /root/DiffusionPen && cp -r ./datasets_and_models/diffusionpen_iam_model_path ./diffusionpen_iam_model_path || mkdir -p ./diffusionpen_iam_model_path",
+        # Create IAM dataset structure for the training script
         "cd /root/DiffusionPen && mkdir -p ./iam_data/ascii ./iam_data/words ./utils/aachen_iam_split",
-        "cd /root/DiffusionPen && echo '# Mock forms file' > ./iam_data/ascii/forms.txt",
-        "cd /root/DiffusionPen && echo '# Mock validation split' > ./utils/aachen_iam_split/train_val.uttlist",
-        # Create a simplified dataset structure for user samples
+        # Create the IAM_dataset_PIL_style directory with proper structure
         "cd /root/DiffusionPen && mkdir -p ./IAM_dataset_PIL_style",
-        "cd /root/DiffusionPen && echo 'import torch; torch.save({\"data\": [], \"labels\": []}, \"./IAM_dataset_PIL_style/train_word_IAM.pt\")' | python",
+        "cd /root/DiffusionPen && cp ./saved_iam_data/*.pt ./IAM_dataset_PIL_style/ 2>/dev/null || echo 'No .pt files to copy'",
     ])
 )
 
@@ -358,26 +361,26 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
                     # Use the pre-trained model with user samples for style adaptation
                     # This is the proper DiffusionPen approach: base model + style adaptation
                     try:
-                        # Look for the style encoder training script with proper IAM data
+                        # Use proper DiffusionPen training command as shown in the documentation
                         cmd = [
                             "python", style_encoder_script,
-                            "--style_dir", style_dir,  # User samples directory
-                            "--save_path", model_dir,
+                            "--model", "resnet50",
+                            "--dataset", "iam",
+                            "--batch_size", "16",
+                            "--epochs", "20",
                             "--device", device,
-                            "--epochs", "10",  # Fewer epochs for fine-tuning
-                            "--batch_size", "4",  # Smaller batch for user samples
-                            "--mode", "finetune"  # Fine-tuning mode
+                            "--save_path", model_dir,
+                            "--mode", "mixed"
                         ]
                         
-                        print(f"Running DiffusionPen style adaptation: {' '.join(cmd)}")
+                        print(f"Running DiffusionPen style training: {' '.join(cmd)}")
                         
-                        import subprocess
                         result = subprocess.run(
                             cmd,
                             cwd=diffusionpen_path,
                             capture_output=True,
                             text=True,
-                            timeout=600  # 10 minute timeout for fine-tuning
+                            timeout=1200  # 20 minute timeout for full training
                         )
                         
                         print(f"Training stdout: {result.stdout}")
