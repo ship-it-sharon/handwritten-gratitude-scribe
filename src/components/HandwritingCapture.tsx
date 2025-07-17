@@ -28,6 +28,7 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [uploadedImages, setUploadedImages] = useState<Map<number, string>>(new Map());
   const [mobileImages, setMobileImages] = useState<Map<number, string>>(new Map());
   const [completedSamples, setCompletedSamples] = useState<Set<number>>(new Set());
   const [isValidating, setIsValidating] = useState(false);
@@ -351,6 +352,14 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
   };
 
   const completeSample = () => {
+    // Store the current uploaded image for this sample
+    if (uploadedImage) {
+      const newUploadedImages = new Map(uploadedImages);
+      newUploadedImages.set(currentSample, uploadedImage);
+      setUploadedImages(newUploadedImages);
+      console.log(`💾 Stored uploaded image for sample ${currentSample}`);
+    }
+    
     const newCompleted = new Set(completedSamples);
     newCompleted.add(currentSample);
     setCompletedSamples(newCompleted);
@@ -373,24 +382,30 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
   const generatePreviewSample = async () => {
     setIsGeneratingPreview(true);
     try {
-      // Collect all samples
+      // Collect all completed samples across all 5 steps
       const allSamples: string[] = [];
       
-      // Convert canvas to base64 if available
+      // Add mobile images (keyed by sample index)
+      mobileImages.forEach((imageUrl) => {
+        allSamples.push(imageUrl);
+      });
+      
+      // Add uploaded images from all samples
+      uploadedImages.forEach((imageUrl) => {
+        allSamples.push(imageUrl);
+      });
+      
+      // Add any additional samples from current session if needed
       if (canvasRef.current && hasDrawn) {
         const canvasData = canvasRef.current.toDataURL();
         allSamples.push(canvasData);
       }
       
-      // Add uploaded image
       if (uploadedImage) {
         allSamples.push(uploadedImage);
       }
       
-      // Add mobile images
-      mobileImages.forEach((imageUrl) => {
-        allSamples.push(imageUrl);
-      });
+      console.log('🎨 Collected samples for preview:', allSamples.length);
 
       // Analyze handwriting style
       const handwritingStyle = analyzeHandwritingSamples(allSamples);
@@ -413,24 +428,29 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
   };
 
   const finishCapture = () => {
-    // Collect all samples (canvas drawings, uploaded images, mobile images)
+    // Collect all completed samples across all 5 steps
     const allSamples: (string | HTMLCanvasElement)[] = [];
     
-    // Add canvas if we have drawn content
-    if (canvasRef.current && hasDrawn) {
-      allSamples.push(canvasRef.current);
-    }
-    
-    // Add uploaded image
-    if (uploadedImage) {
-      allSamples.push(uploadedImage);
-    }
-    
-    // Add mobile images
+    // Add mobile images (these are keyed by sample index)
     mobileImages.forEach((imageUrl) => {
       allSamples.push(imageUrl);
     });
     
+    // Add uploaded images from all samples
+    uploadedImages.forEach((imageUrl) => {
+      allSamples.push(imageUrl);
+    });
+    
+    // Add any additional samples from current session if needed
+    if (canvasRef.current && hasDrawn) {
+      allSamples.push(canvasRef.current);
+    }
+    
+    if (uploadedImage) {
+      allSamples.push(uploadedImage);
+    }
+    
+    console.log('🎯 Finishing capture with samples:', allSamples.length);
     onNext(allSamples);
   };
 
