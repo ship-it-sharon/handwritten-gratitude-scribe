@@ -23,6 +23,7 @@ image = (
         "opencv-python-headless",
         "matplotlib",
         "scipy",
+        "scikit-image>=0.18.0",  # Required for style encoder training
         "huggingface-hub",
         "safetensors",
         "xformers"  # For memory optimization
