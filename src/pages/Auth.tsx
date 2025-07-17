@@ -13,6 +13,7 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -37,11 +38,23 @@ const Auth = () => {
           email,
           password,
         });
-        if (error) throw error;
-        toast({
-          title: "Welcome back!",
-          description: "You've been signed in successfully.",
-        });
+        if (error) {
+          if (error.message.includes("Email not confirmed")) {
+            setShowEmailConfirmation(true);
+            toast({
+              title: "Email not confirmed",
+              description: "Please check your email and click the confirmation link before signing in.",
+            });
+          } else {
+            throw error;
+          }
+        } else {
+          toast({
+            title: "Welcome back!",
+            description: "You've been signed in successfully.",
+          });
+          navigate("/");
+        }
       } else {
         const { error } = await supabase.auth.signUp({
           email,
@@ -51,12 +64,12 @@ const Auth = () => {
           }
         });
         if (error) throw error;
+        setShowEmailConfirmation(true);
         toast({
           title: "Account created!",
-          description: "Please check your email to verify your account.",
+          description: "Please check your email to verify your account before signing in.",
         });
       }
-      navigate("/");
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -71,90 +84,118 @@ const Auth = () => {
   return (
     <div className="min-h-screen bg-gradient-warm flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-8 shadow-elegant">
-        <div className="text-center space-y-6">
-          <div className="space-y-2">
-            <div className="flex justify-center">
-              <div className="p-3 bg-primary/10 rounded-full">
-                <PenTool className="w-6 h-6 text-primary" />
+        {showEmailConfirmation ? (
+          <div className="text-center space-y-6">
+            <div className="space-y-2">
+              <div className="flex justify-center">
+                <div className="p-3 bg-primary/10 rounded-full">
+                  <Mail className="w-6 h-6 text-primary" />
+                </div>
               </div>
+              <h1 className="text-2xl font-elegant text-ink">Check Your Email</h1>
+              <p className="text-muted-foreground">
+                We've sent a confirmation link to <strong>{email}</strong>. 
+                Please click the link to verify your account, then return here to sign in.
+              </p>
             </div>
-            <h1 className="text-3xl font-elegant text-ink">
-              {isLogin ? "Welcome Back" : "Create Account"}
-            </h1>
-            <p className="text-muted-foreground">
-              {isLogin 
-                ? "Sign in to access your handwriting styles" 
-                : "Join to create personalized handwritten notes"
-              }
-            </p>
-          </div>
-
-          <form onSubmit={handleAuth} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-left flex items-center gap-2">
-                <Mail className="w-4 h-4" />
-                Email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-left flex items-center gap-2">
-                <Lock className="w-4 h-4" />
-                Password
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-              />
-            </div>
-
-            <Button 
-              type="submit" 
-              variant="elegant" 
-              size="lg" 
-              className="w-full"
-              disabled={loading}
-            >
-              {loading ? (
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 animate-spin" />
-                  {isLogin ? "Signing in..." : "Creating account..."}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4" />
-                  {isLogin ? "Sign In" : "Create Account"}
-                </div>
-              )}
-            </Button>
-          </form>
-
-          <div className="text-center">
+            
             <Button
-              variant="ghost"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-sm text-muted-foreground hover:text-primary"
+              variant="outline"
+              onClick={() => {
+                setShowEmailConfirmation(false);
+                setIsLogin(true);
+              }}
+              className="w-full"
             >
-              {isLogin 
-                ? "Don't have an account? Sign up" 
-                : "Already have an account? Sign in"
-              }
+              Back to Sign In
             </Button>
           </div>
-        </div>
+        ) : (
+          <div className="text-center space-y-6">
+            <div className="space-y-2">
+              <div className="flex justify-center">
+                <div className="p-3 bg-primary/10 rounded-full">
+                  <PenTool className="w-6 h-6 text-primary" />
+                </div>
+              </div>
+              <h1 className="text-3xl font-elegant text-ink">
+                {isLogin ? "Welcome Back" : "Create Account"}
+              </h1>
+              <p className="text-muted-foreground">
+                {isLogin 
+                  ? "Sign in to access your handwriting styles" 
+                  : "Join to create personalized handwritten notes"
+                }
+              </p>
+            </div>
+
+            <form onSubmit={handleAuth} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-left flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-left flex items-center gap-2">
+                  <Lock className="w-4 h-4" />
+                  Password
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+
+              <Button 
+                type="submit" 
+                variant="elegant" 
+                size="lg" 
+                className="w-full"
+                disabled={loading}
+              >
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 animate-spin" />
+                    {isLogin ? "Signing in..." : "Creating account..."}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    {isLogin ? "Sign In" : "Create Account"}
+                  </div>
+                )}
+              </Button>
+            </form>
+
+            <div className="text-center">
+              <Button
+                variant="ghost"
+                onClick={() => setIsLogin(!isLogin)}
+                className="text-sm text-muted-foreground hover:text-primary"
+              >
+                {isLogin 
+                  ? "Don't have an account? Sign up" 
+                  : "Already have an account? Sign in"
+                }
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );
