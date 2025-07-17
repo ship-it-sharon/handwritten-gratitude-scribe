@@ -8,6 +8,7 @@ import { RotateCcw, Check, ChevronRight, Upload, Camera, PenTool, Image, Smartph
 import { toast } from "sonner";
 import { MobileUploadSidecar } from "./MobileUploadSidecar";
 import { analyzeHandwritingSamples, generateHandwritingStyle } from "@/lib/handwriting";
+import { supabase } from "@/integrations/supabase/client";
 
 interface HandwritingCaptureProps {
   onNext: (samples: (string | HTMLCanvasElement)[]) => void;
@@ -67,6 +68,51 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
     
     contextRef.current = context;
   }, [currentSample]);
+
+  // Load existing mobile uploads on component mount
+  useEffect(() => {
+    const loadExistingUploads = async () => {
+      try {
+        console.log('🔍 Checking for existing mobile uploads...');
+        const { data, error } = await supabase
+          .from('mobile_uploads')
+          .select('*');
+
+        if (error) {
+          console.error('Error loading mobile uploads:', error);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          console.log('📱 Found existing mobile uploads:', data.length);
+          const newMobileImages = new Map<number, string>();
+          const newCompleted = new Set<number>();
+          
+          // Process each upload and match it to sample index based on sample_text
+          data.forEach((upload) => {
+            const sampleIndex = sampleTexts.findIndex(text => text === upload.sample_text);
+            if (sampleIndex !== -1 && upload.image_data) {
+              console.log(`✅ Loading sample ${sampleIndex}: ${upload.sample_text.substring(0, 30)}...`);
+              newMobileImages.set(sampleIndex, upload.image_data);
+              newCompleted.add(sampleIndex);
+            }
+          });
+          
+          if (newMobileImages.size > 0) {
+            setMobileImages(newMobileImages);
+            setCompletedSamples(newCompleted);
+            toast.success(`Found ${newMobileImages.size} handwriting samples from your phone!`);
+          }
+        } else {
+          console.log('📱 No existing mobile uploads found');
+        }
+      } catch (error) {
+        console.error('Error loading mobile uploads:', error);
+      }
+    };
+    
+    loadExistingUploads();
+  }, []); // Only run once on mount
 
   // Reset states when switching methods or samples
   useEffect(() => {
