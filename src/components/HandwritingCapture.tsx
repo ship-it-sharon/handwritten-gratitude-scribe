@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface HandwritingCaptureProps {
   onNext: (samples: (string | HTMLCanvasElement)[]) => void;
+  user?: any; // Add user prop to load existing samples
 }
 
 const sampleTexts = [
@@ -22,7 +23,7 @@ const sampleTexts = [
   "Best wishes: sincerely yours (always & forever)"
 ];
 
-export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
+export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) => {
   const [currentSample, setCurrentSample] = useState(0);
   const [captureMethod, setCaptureMethod] = useState<'draw' | 'upload' | 'mobile'>('draw');
   const [isDrawing, setIsDrawing] = useState(false);
@@ -70,12 +71,43 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
     contextRef.current = context;
   }, [currentSample]);
 
-  // Load existing mobile uploads on component mount
+  // Load existing samples on component mount
   useEffect(() => {
-    const loadExistingUploads = async () => {
+    const loadExistingSamples = async () => {
       try {
+        // Load user's saved samples if authenticated
+        if (user) {
+          console.log('🔍 Loading existing user samples...');
+          const { data, error } = await supabase
+            .from('user_style_models')
+            .select('sample_images')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (data?.sample_images && !error) {
+            console.log('✅ Found saved samples:', data.sample_images.length);
+            const newUploadedImages = new Map<number, string>();
+            const newCompleted = new Set<number>();
+            
+            // Map saved samples to sample indices
+            data.sample_images.forEach((imageUrl: string, index: number) => {
+              if (index < sampleTexts.length) {
+                newUploadedImages.set(index, imageUrl);
+                newCompleted.add(index);
+              }
+            });
+            
+            setUploadedImages(newUploadedImages);
+            setCompletedSamples(newCompleted);
+            toast.success(`Loaded ${newCompleted.size} existing handwriting samples!`);
+            return;
+          }
+        }
+
+        // Load mobile uploads as fallback
         console.log('🔍 Checking for existing mobile uploads...');
-        // Only look for recent uploads (within last hour) to avoid old session conflicts
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         const { data, error } = await supabase
           .from('mobile_uploads')
@@ -92,11 +124,9 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
           const newMobileImages = new Map<number, string>();
           const newCompleted = new Set<number>();
           
-          // Process each upload and match it to sample index based on sample_text
           data.forEach((upload) => {
             const sampleIndex = sampleTexts.findIndex(text => text === upload.sample_text);
             if (sampleIndex !== -1 && upload.image_data) {
-              console.log(`✅ Loading sample ${sampleIndex}: ${upload.sample_text.substring(0, 30)}...`);
               newMobileImages.set(sampleIndex, upload.image_data);
               newCompleted.add(sampleIndex);
             }
@@ -107,16 +137,14 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
             setCompletedSamples(newCompleted);
             toast.success(`Found ${newMobileImages.size} handwriting samples from your phone!`);
           }
-        } else {
-          console.log('📱 No existing mobile uploads found');
         }
       } catch (error) {
-        console.error('Error loading mobile uploads:', error);
+        console.error('Error loading existing samples:', error);
       }
     };
     
-    loadExistingUploads();
-  }, []); // Only run once on mount
+    loadExistingSamples();
+  }, [user]); // Reload when user changes
 
   // Reset states when switching methods or samples
   useEffect(() => {
