@@ -153,10 +153,25 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
       </div>
 
       {generatedSvg && (
-        <div className="text-center">
-          <p className="text-xs text-muted-foreground">
-            ✨ AI-generated handwriting matching your unique style
-          </p>
+        <div className="space-y-4">
+          <div className="flex justify-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => generatePreview()}
+              disabled={isGenerating}
+              className="gap-2"
+            >
+              <Sparkles className="w-4 h-4" />
+              {isGenerating ? 'Regenerating...' : 'Generate Again'}
+            </Button>
+          </div>
+          
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground">
+              ✨ AI-generated handwriting matching your unique style
+            </p>
+          </div>
         </div>
       )}
     </Card>
