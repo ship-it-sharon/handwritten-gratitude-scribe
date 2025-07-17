@@ -75,9 +75,12 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
     const loadExistingUploads = async () => {
       try {
         console.log('🔍 Checking for existing mobile uploads...');
+        // Only look for recent uploads (within last hour) to avoid old session conflicts
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         const { data, error } = await supabase
           .from('mobile_uploads')
-          .select('*');
+          .select('*')
+          .gte('created_at', oneHourAgo);
 
         if (error) {
           console.error('Error loading mobile uploads:', error);
