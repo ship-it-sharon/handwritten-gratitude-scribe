@@ -337,66 +337,55 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
                 except Exception as e:
                     print(f"Could not get help for style encoder script: {e}")
                 
-                # Try different argument patterns based on common DiffusionPen usage
-                possible_commands = [
-                    # Pattern 1: Using common DiffusionPen arguments
-                    [
-                        "python", style_encoder_script,
-                        "--dataset", style_dir,
-                        "--save_path", model_dir,
-                        "--device", device
-                    ],
-                    # Pattern 2: Minimal arguments
-                    [
-                        "python", style_encoder_script,
-                        style_dir,
-                        model_dir
-                    ],
-                    # Pattern 3: Different naming convention
-                    [
-                        "python", style_encoder_script,
-                        "--input_dir", style_dir,
-                        "--output_dir", model_dir
-                    ]
+                # Use correct DiffusionPen arguments based on actual source code analysis
+                cmd = [
+                    "python", style_encoder_script,
+                    "--model", "mobilenetv2_100",  # Default CNN model from source
+                    "--dataset", "iam",  # Required dataset parameter
+                    "--batch_size", "32",  # Smaller batch size for few samples
+                    "--epochs", "10",  # Fewer epochs for few-shot learning  
+                    "--device", device,
+                    "--save_path", model_dir,
+                    "--mode", "mixed"  # DiffusionPen's hybrid approach (classification + metric learning)
                 ]
                 
-                training_successful = False
-                for i, cmd in enumerate(possible_commands):
-                    print(f"Trying training command pattern {i+1}: {' '.join(cmd)}")
-                    
-                    try:
-                        result = subprocess.run(
-                            cmd,
-                            cwd=diffusionpen_path,
-                            capture_output=True,
-                            text=True,
-                            timeout=300  # 5 minute timeout
-                        )
-                        
-                        print(f"Command stdout: {result.stdout}")
-                        print(f"Command stderr: {result.stderr}")
-                        
-                        if result.returncode == 0:
-                            print(f"Style encoder training completed successfully with pattern {i+1}")
-                            training_successful = True
-                            break
-                        else:
-                            print(f"Pattern {i+1} failed with return code: {result.returncode}")
-                            
-                    except subprocess.TimeoutExpired:
-                        print(f"Pattern {i+1} timed out")
-                        continue
-                    except Exception as e:
-                        print(f"Pattern {i+1} failed with exception: {e}")
-                        continue
+                print(f"Running DiffusionPen style training: {' '.join(cmd)}")
                 
-                if training_successful:
-                    # Generate unique model ID
-                    import uuid
-                    model_id = f"model_{user_id}_{uuid.uuid4().hex[:8]}"
-                    return model_id
-                else:
-                    print("All training command patterns failed")
+                try:
+                    result = subprocess.run(
+                        cmd,
+                        cwd=diffusionpen_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=600  # 10 minute timeout for training
+                    )
+                    
+                    print(f"Training stdout: {result.stdout}")
+                    print(f"Training stderr: {result.stderr}")
+                    print(f"Training return code: {result.returncode}")
+                    
+                    if result.returncode == 0:
+                        print("DiffusionPen style encoder training completed successfully!")
+                        
+                        # Check if model files were created
+                        model_files = os.listdir(model_dir) if os.path.exists(model_dir) else []
+                        print(f"Model files created: {model_files}")
+                        
+                        # Generate unique model ID
+                        import uuid
+                        model_id = f"style_model_{user_id}_{uuid.uuid4().hex[:8]}"
+                        print(f"Generated model ID: {model_id}")
+                        return model_id
+                    else:
+                        print(f"Style encoder training failed with return code: {result.returncode}")
+                        print(f"Error output: {result.stderr}")
+                        return None
+                        
+                except subprocess.TimeoutExpired:
+                    print("Style encoder training timed out")
+                    return None
+                except Exception as e:
+                    print(f"Style encoder training failed with exception: {e}")
                     return None
             else:
                 print("style_encoder_train.py not found, skipping training")

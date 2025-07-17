@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,6 +16,7 @@ interface HandwritingRequest {
     pressure?: number
   }
   samples?: string[] // base64 encoded images
+  userId?: string // User authentication
 }
 
 serve(async (req) => {
@@ -43,12 +45,20 @@ serve(async (req) => {
       )
     }
 
-    // Extract samples from request
+    // Extract samples and user info from request
     const samples = body.samples || [];
+    const userId = body.userId;
     
     console.log(`Generating handwriting for: "${body.text}" with ${samples.length} reference samples`)
+    console.log('User ID:', userId)
     console.log('Raw samples received:', JSON.stringify(body.samples?.slice(0, 2)?.map(s => s?.substring(0, 50)) || [], null, 2))
     console.log('Samples array check:', Array.isArray(body.samples), 'Length:', body.samples?.length || 0)
+
+    // Initialize Supabase client
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
     // Try to call Modal API with retries (Modal apps go idle and need warmup time)
     const maxRetries = 3
@@ -58,12 +68,127 @@ serve(async (req) => {
     
     let modelId = null;
     
-    // Step 1: Train style encoder if samples are provided
-    console.log(`Samples check: length=${samples.length}, samples exist=${!!samples}`);
-    
-    if (samples.length > 0) {
-      console.log(`=== STARTING TRAINING STEP ===`);
-      console.log(`Training style encoder with ${samples.length} samples...`);
+    // Step 1: Handle user-specific style training and model management
+    if (userId && samples.length > 0) {
+      console.log('=== CHECKING FOR EXISTING USER STYLE MODEL ===');
+      
+      // Check if user already has a trained model
+      const { data: existingModel } = await supabase
+        .from('user_style_models')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('training_status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (existingModel) {
+        console.log("Found existing trained model:", existingModel.model_id);
+        modelId = existingModel.model_id;
+      } else {
+        console.log("No existing model found, starting training process...");
+        
+        // Create new training record
+        const newModelId = `style_model_${userId}_${Date.now()}`;
+        const { data: newModel, error: insertError } = await supabase
+          .from('user_style_models')
+          .insert({
+            user_id: userId,
+            model_id: newModelId,
+            training_status: 'training',
+            sample_images: samples.slice(0, 5), // Store the samples used for training
+            training_started_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+          
+        if (insertError) {
+          console.error("Error creating training record:", insertError);
+        } else {
+          console.log("Created training record:", newModel?.model_id);
+          
+          console.log(`=== STARTING TRAINING STEP ===`);
+          console.log(`Training style encoder with ${samples.length} samples...`);
+          
+          // Attempt training with Modal API
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+              console.log(`Attempting training API call (attempt ${attempt}/${maxRetries})...`)
+              
+              const trainingUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/train_style'
+              console.log(`Training URL: ${trainingUrl}`)
+              
+              const controller = new AbortController()
+              const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+              
+              const trainingPayload = {
+                samples: samples.slice(0, 5),
+                user_id: userId
+              }
+              
+              const trainingResponse = await fetch(trainingUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(trainingPayload),
+                signal: controller.signal
+              })
+
+              clearTimeout(timeoutId)
+
+              if (trainingResponse.ok) {
+                const trainingData = await trainingResponse.json()
+                modelId = trainingData.model_id
+                
+                // Update training record as completed
+                await supabase
+                  .from('user_style_models')
+                  .update({
+                    training_status: 'completed',
+                    style_model_path: modelId, // Store the model path/ID
+                    training_completed_at: new Date().toISOString()
+                  })
+                  .eq('model_id', newModelId);
+                
+                console.log(`Style encoder training completed successfully on attempt ${attempt}`)
+                console.log(`Model ID: ${modelId}`)
+                break
+              } else {
+                console.log(`Training attempt ${attempt} failed with status: ${trainingResponse.status}`)
+                if (attempt === maxRetries) {
+                  // Update training record as failed
+                  await supabase
+                    .from('user_style_models')
+                    .update({
+                      training_status: 'failed'
+                    })
+                    .eq('model_id', newModelId);
+                  
+                  console.log('Training failed after all attempts, proceeding with fallback generation')
+                }
+              }
+            } catch (error) {
+              console.log(`Training attempt ${attempt} failed with error: ${error}`)
+              if (attempt === maxRetries) {
+                // Update training record as failed
+                await supabase
+                  .from('user_style_models')
+                  .update({
+                    training_status: 'failed'
+                  })
+                  .eq('model_id', newModelId);
+                
+                console.log('Training failed after all attempts, proceeding with fallback generation')
+              }
+            }
+          }
+        }
+      }
+    } else if (samples.length > 0) {
+      // Anonymous user with samples - do one-time training without saving to database
+      console.log("=== ANONYMOUS USER TRAINING ===");
+      console.log(`Training style encoder with ${samples.length} samples for anonymous user...`);
       
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
@@ -76,8 +201,8 @@ serve(async (req) => {
           const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
           
           const trainingPayload = {
-            samples: samples,
-            user_id: `user_${Date.now()}` // Generate a simple user ID
+            samples: samples.slice(0, 5),
+            user_id: `anonymous_${Date.now()}` // Anonymous user ID
           }
           
           const trainingResponse = await fetch(trainingUrl, {
@@ -94,7 +219,7 @@ serve(async (req) => {
           if (trainingResponse.ok) {
             const trainingData = await trainingResponse.json()
             modelId = trainingData.model_id
-            console.log(`Style encoder training completed successfully on attempt ${attempt}`)
+            console.log(`Anonymous training completed successfully on attempt ${attempt}`)
             console.log(`Model ID: ${modelId}`)
             break
           } else {

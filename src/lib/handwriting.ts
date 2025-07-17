@@ -29,7 +29,8 @@ export const analyzeHandwritingSamples = (samples: (string | HTMLCanvasElement)[
 export const generateHandwritingStyle = async (
   text: string, 
   style: HandwritingStyle, 
-  samples?: string[]
+  samples?: string[],
+  userId?: string
 ): Promise<string> => {
   try {
     const { supabase } = await import('@/integrations/supabase/client');
@@ -38,6 +39,7 @@ export const generateHandwritingStyle = async (
       body: {
         text,
         samples: samples || [],
+        userId: userId, // Include user ID for personalized models
         styleCharacteristics: {
           slant: style.slant,
           spacing: style.spacing,
