@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Wand2, Eye, Settings, Sparkles } from "lucide-react";
+import { Wand2, Eye, Settings, Sparkles, RotateCcw } from "lucide-react";
 import { analyzeHandwritingSamples, generateHandwritingStyle, type HandwritingStyle } from "@/lib/handwriting";
+import { supabase } from "@/integrations/supabase/client";
 
 interface HandwritingPreviewProps {
   text: string;
@@ -17,6 +18,14 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
   const [generatedSvg, setGeneratedSvg] = useState<string>("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Get current user ID
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserId(user?.id || null);
+    });
+  }, []);
 
   const analyzeStyle = async () => {
     setIsAnalyzing(true);
@@ -59,7 +68,8 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
       const svg = await generateHandwritingStyle(
         text, 
         style || handwritingStyle!, 
-        base64Samples
+        base64Samples,
+        userId || undefined // Pass user ID for authenticated users
       );
       setGeneratedSvg(svg);
     } catch (error) {
@@ -154,7 +164,7 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
 
       {generatedSvg && (
         <div className="space-y-4">
-          <div className="flex justify-center">
+          <div className="flex gap-2 justify-center">
             <Button
               variant="outline"
               size="sm"
@@ -162,8 +172,8 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
               disabled={isGenerating}
               className="gap-2"
             >
-              <Sparkles className="w-4 h-4" />
-              {isGenerating ? 'Regenerating...' : 'Generate Again'}
+              <RotateCcw className="w-4 h-4" />
+              {isGenerating ? 'Regenerating...' : 'Try Again'}
             </Button>
           </div>
           
