@@ -358,19 +358,17 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
                     print(f"Found pre-trained models at: {pretrained_models_path}")
                     print(f"Contents: {os.listdir(pretrained_models_path) if os.path.exists(pretrained_models_path) else 'None'}")
                     
-                    # Use the pre-trained model with user samples for style adaptation
-                    # This is the proper DiffusionPen approach: base model + style adaptation
+                    # Use proper DiffusionPen training command with user's style samples
                     try:
-                        # Use proper DiffusionPen training command as shown in the documentation
+                        # Updated command to work with user's custom samples
                         cmd = [
                             "python", style_encoder_script,
-                            "--model", "resnet50",
-                            "--dataset", "iam",
-                            "--batch_size", "16",
-                            "--epochs", "20",
+                            "--dataset", style_dir,  # Use our custom samples directory
+                            "--batch_size", "4",
+                            "--epochs", "10", 
                             "--device", device,
                             "--save_path", model_dir,
-                            "--mode", "mixed"
+                            "--mode", "finetune"  # Use finetune mode for custom samples
                         ]
                         
                         print(f"Running DiffusionPen style training: {' '.join(cmd)}")
