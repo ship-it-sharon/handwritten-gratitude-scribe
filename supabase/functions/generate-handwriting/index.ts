@@ -314,6 +314,13 @@ async function trainModelWithTimeout(samples: string[], userId: string | null, t
       const trainingData = await trainingResponse.json()
       const trainedModelId = trainingData.model_id
       
+      // Check if training actually succeeded or fell back to generic profile
+      if (trainedModelId && trainedModelId.includes('style_profile_None_')) {
+        console.log(`Training failed - Modal fell back to generic profile: ${trainedModelId}`)
+        console.log('This usually indicates a script argument mismatch in Modal API')
+        return { success: false }
+      }
+      
       console.log(`Immediate training completed successfully`)
       console.log(`Trained model ID: ${trainedModelId}`)
       
