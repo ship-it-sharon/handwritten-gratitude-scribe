@@ -417,8 +417,16 @@ export const HandwritingCapture = ({ onNext }: HandwritingCaptureProps) => {
       const previewMessage = "Hey there! Here is our best attempt at matching your handwriting. How does this look to you?";
       
       // Generate handwriting SVG
-      const svg = await generateHandwritingStyle(previewMessage, handwritingStyle, allSamples);
-      setPreviewSvg(svg);
+      const result = await generateHandwritingStyle(previewMessage, handwritingStyle, allSamples);
+      
+      // Handle the new response format
+      if (typeof result === 'string') {
+        setPreviewSvg(result);
+      } else {
+        // Handle training status or other object responses
+        console.log('Received training status:', result);
+        setPreviewSvg(''); // Clear SVG during training
+      }
       setShowPreview(true);
       
       toast.success("✨ Handwriting preview generated!");

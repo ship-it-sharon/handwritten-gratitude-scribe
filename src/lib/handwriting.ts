@@ -31,7 +31,7 @@ export const generateHandwritingStyle = async (
   style: HandwritingStyle, 
   samples?: string[],
   userId?: string
-): Promise<string> => {
+): Promise<string | { status: string; [key: string]: any }> => {
   try {
     const { supabase } = await import('@/integrations/supabase/client');
     
@@ -57,7 +57,8 @@ export const generateHandwritingStyle = async (
       throw new Error(`Failed to generate handwriting: ${error.message}`);
     }
 
-    return data.handwritingSvg;
+    // Return the full response for training status handling
+    return data.handwritingSvg || data;
   } catch (error) {
     console.error('Error generating handwriting:', error);
     throw error;

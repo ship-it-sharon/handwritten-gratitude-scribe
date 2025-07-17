@@ -19,6 +19,7 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [trainingStatus, setTrainingStatus] = useState<any>(null);
 
   // Get current user ID
   useEffect(() => {
@@ -65,13 +66,32 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
       
       console.log(`Converting ${samples.length} samples to base64, got ${base64Samples.length} strings`);
       
-      const svg = await generateHandwritingStyle(
+      const response = await generateHandwritingStyle(
         text, 
         style || handwritingStyle!, 
         base64Samples,
         userId || undefined // Pass user ID for authenticated users
       );
-      setGeneratedSvg(svg);
+      
+      // Handle different response types
+      if (!response) {
+        return;
+      }
+      
+      if (typeof response === 'object' && 'status' in response) {
+        const statusResponse = response as any;
+        if (statusResponse.status === 'training') {
+          // Show training status instead of SVG
+          setGeneratedSvg(''); // Clear any existing SVG
+          setTrainingStatus(statusResponse);
+        }
+      } else if (typeof response === 'string') {
+        // Regular SVG response
+        setGeneratedSvg(response);
+        setTrainingStatus(null);
+      } else {
+        console.warn('Unexpected response format:', response);
+      }
     } catch (error) {
       console.error('Error generating handwriting preview:', error);
     } finally {
@@ -142,7 +162,44 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
         </div>
         
         <Card className="p-6 bg-paper min-h-40 flex items-center justify-center">
-          {generatedSvg ? (
+          {trainingStatus ? (
+            // Training in progress state
+            <div className="text-center space-y-4 max-w-md">
+              <div className="relative">
+                <div className="w-16 h-16 mx-auto mb-4 relative">
+                  <div className="absolute inset-0 border-4 border-primary/20 rounded-full"></div>
+                  <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium text-ink text-lg">Learning Your Handwriting Style</h4>
+                <p className="text-muted-foreground">
+                  Our AI is analyzing your samples to create a personalized handwriting model
+                </p>
+                <div className="text-sm text-primary font-medium">
+                  Estimated time: {trainingStatus.estimated_time}
+                </div>
+                {trainingStatus.note && (
+                  <p className="text-xs text-muted-foreground italic mt-3">
+                    {trainingStatus.note}
+                  </p>
+                )}
+              </div>
+              
+              <div className="pt-4">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => generatePreview()}
+                  disabled={isGenerating}
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  {isGenerating ? 'Checking...' : 'Check Progress'}
+                </Button>
+              </div>
+            </div>
+          ) : generatedSvg ? (
             <div 
               className="max-w-full" 
               dangerouslySetInnerHTML={{ __html: generatedSvg }}
@@ -162,7 +219,7 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
         </Card>
       </div>
 
-      {generatedSvg && (
+      {generatedSvg && !trainingStatus && (
         <div className="space-y-4">
           <div className="flex gap-2 justify-center">
             <Button

@@ -110,74 +110,39 @@ serve(async (req) => {
             // Start background training without blocking response
             trainModelInBackground(supabase, samples, userId, newModelId);
             
-            // Return immediately while training happens in background
+            // Return training status instead of fallback handwriting
             return new Response(JSON.stringify({
-              handwritingSvg: generateHandwritingSVG(body.text, body.styleCharacteristics || {}),
+              status: 'training',
               model_id: newModelId,
-              training_status: 'training',
-              message: 'Training in progress. Future requests will use your trained model.',
-              styleCharacteristics: {
-                slant: body.styleCharacteristics?.slant || 0.1,
-                spacing: body.styleCharacteristics?.spacing || 1.0,
-                strokeWidth: body.styleCharacteristics?.strokeWidth || 2.0,
-                baseline: body.styleCharacteristics?.baseline || "natural",
-                pressure: body.styleCharacteristics?.pressure || 1.0
-              }
+              message: 'Learning your handwriting style...',
+              estimated_time: '2-3 minutes',
+              stage: 'analyzing_samples',
+              progress: 0
             }), {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             })
         }
       }
     } else if (samples.length > 0) {
-      // Anonymous user with samples - do one-time training without saving to database
+      // Anonymous user with samples - return training status
       console.log("=== ANONYMOUS USER TRAINING ===");
       console.log(`Training style encoder with ${samples.length} samples for anonymous user...`);
       
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          console.log(`Attempting training API call (attempt ${attempt}/${maxRetries})...`)
-          
-          const trainingUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/train_style'
-          console.log(`Training URL: ${trainingUrl}`)
-          
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-          
-          const trainingPayload = {
-            samples: samples.slice(0, 5),
-            user_id: `anonymous_${Date.now()}` // Anonymous user ID
-          }
-          
-          const trainingResponse = await fetch(trainingUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(trainingPayload),
-            signal: controller.signal
-          })
-
-          clearTimeout(timeoutId)
-
-          if (trainingResponse.ok) {
-            const trainingData = await trainingResponse.json()
-            modelId = trainingData.model_id
-            console.log(`Anonymous training completed successfully on attempt ${attempt}`)
-            console.log(`Model ID: ${modelId}`)
-            break
-          } else {
-            console.log(`Training attempt ${attempt} failed with status: ${trainingResponse.status}`)
-            if (attempt === maxRetries) {
-              console.log('Training failed after all attempts, proceeding with fallback generation')
-            }
-          }
-        } catch (error) {
-          console.log(`Training attempt ${attempt} failed with error: ${error}`)
-          if (attempt === maxRetries) {
-            console.log('Training failed after all attempts, proceeding with fallback generation')
-          }
-        }
-      }
+      // Start anonymous training in background
+      const anonymousModelId = `anonymous_${Date.now()}`;
+      trainModelInBackground(supabase, samples, null, anonymousModelId);
+      
+      return new Response(JSON.stringify({
+        status: 'training',
+        model_id: anonymousModelId,
+        message: 'Learning your handwriting style...',
+        estimated_time: '2-3 minutes',
+        stage: 'analyzing_samples',
+        progress: 0,
+        note: 'Sign up to save your personalized handwriting style!'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
     }
     
     // Step 2: Generate handwriting using trained model or fallback
