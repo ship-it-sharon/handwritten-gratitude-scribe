@@ -1,15 +1,33 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { PenTool, Heart, Send, Sparkles, ChevronRight } from "lucide-react";
+import { PenTool, Heart, Send, Sparkles, ChevronRight, LogOut, RotateCcw } from "lucide-react";
+import { User } from "@supabase/supabase-js";
 
 interface WelcomeScreenProps {
   onNext: () => void;
+  user?: User | null;
+  onLogout?: () => void;
+  userStyleModel?: any;
+  onRegenerateFromSaved?: () => void;
 }
 
-export const WelcomeScreen = ({ onNext }: WelcomeScreenProps) => {
+export const WelcomeScreen = ({ onNext, user, onLogout, userStyleModel, onRegenerateFromSaved }: WelcomeScreenProps) => {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="w-full max-w-4xl p-8 shadow-elegant bg-gradient-subtle">
+        {/* User header */}
+        {user && (
+          <div className="flex justify-between items-center mb-6">
+            <div className="text-sm text-muted-foreground">
+              Welcome back, {user.email}
+            </div>
+            <Button variant="ghost" size="sm" onClick={onLogout}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
+        )}
+        
         <div className="text-center space-y-8">
           {/* Hero Section */}
           <div className="space-y-4">
@@ -48,18 +66,48 @@ export const WelcomeScreen = ({ onNext }: WelcomeScreenProps) => {
 
           {/* CTA */}
           <div className="space-y-4">
-            <Button 
-              variant="elegant" 
-              size="xl" 
-              onClick={onNext}
-              className="font-script text-xl px-12"
-            >
-              Start Writing
-              <ChevronRight className="w-5 h-5 ml-2" />
-            </Button>
-            <p className="text-sm text-muted-foreground">
-              Begin by teaching us your handwriting style
-            </p>
+            {userStyleModel?.sample_images ? (
+              <div className="space-y-4">
+                <Button 
+                  variant="elegant" 
+                  size="xl" 
+                  onClick={onRegenerateFromSaved}
+                  className="font-script text-xl px-12"
+                >
+                  <RotateCcw className="w-5 h-5 mr-2" />
+                  Generate from Saved Samples
+                </Button>
+                <p className="text-sm text-muted-foreground">
+                  Use your previously captured handwriting style
+                </p>
+                <div className="pt-2">
+                  <Button 
+                    variant="outline" 
+                    size="lg" 
+                    onClick={onNext}
+                    className="font-script text-lg px-8"
+                  >
+                    Capture New Samples
+                    <ChevronRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <Button 
+                  variant="elegant" 
+                  size="xl" 
+                  onClick={onNext}
+                  className="font-script text-xl px-12"
+                >
+                  Start Writing
+                  <ChevronRight className="w-5 h-5 ml-2" />
+                </Button>
+                <p className="text-sm text-muted-foreground">
+                  Begin by teaching us your handwriting style
+                </p>
+              </>
+            )}
           </div>
         </div>
       </Card>
