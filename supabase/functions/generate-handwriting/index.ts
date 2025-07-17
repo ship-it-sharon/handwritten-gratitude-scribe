@@ -180,6 +180,12 @@ serve(async (req) => {
           console.log('Modal response data:', JSON.stringify(modalData, null, 2))
           console.log('Modal handwritingSvg length:', modalData.handwritingSvg?.length || 'undefined')
           
+          // Check if Modal fell back to a generic style profile (indicates training failure)
+          if (modalData.model_id && modalData.model_id.includes('style_profile_None_')) {
+            console.log("⚠️ Modal training failed, fell back to generic style profile:", modalData.model_id);
+            throw new Error("Modal training failed - fell back to generic style profile");
+          }
+          
           // Check if we got actual handwriting or a placeholder/error image
           if (modalData.handwritingSvg) {
             const svgContent = modalData.handwritingSvg
