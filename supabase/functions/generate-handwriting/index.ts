@@ -85,64 +85,49 @@ serve(async (req) => {
       if (existingModel) {
         console.log("Found existing trained model:", existingModel.model_id);
         modelId = existingModel.model_id;
-        } else {
-          console.log("No existing model found, starting training process...");
+      } else {
+        console.log("No existing model found, attempting immediate training...");
+        
+        // Try immediate training with shorter timeout
+        const newModelId = `style_model_${userId}_${Date.now()}`;
+        const trainingResult = await trainModelWithTimeout(samples, userId, 120000); // 2 minutes
+        
+        if (trainingResult.success) {
+          console.log("Training completed successfully:", trainingResult.modelId);
           
-          // Create new training record
-          const newModelId = `style_model_${userId}_${Date.now()}`;
-          const { data: newModel, error: insertError } = await supabase
+          // Save the trained model
+          await supabase
             .from('user_style_models')
             .insert({
               user_id: userId,
               model_id: newModelId,
-              training_status: 'training',
-              sample_images: samples.slice(0, 5), // Store the samples used for training
-              training_started_at: new Date().toISOString()
-            })
-            .select()
-            .single();
-            
-          if (insertError) {
-            console.error("Error creating training record:", insertError);
-          } else {
-            console.log("Created training record:", newModel?.model_id);
-            
-            // Start background training without blocking response
-            trainModelInBackground(supabase, samples, userId, newModelId);
-            
-            // Return training status instead of fallback handwriting
-            return new Response(JSON.stringify({
-              status: 'training',
-              model_id: newModelId,
-              message: 'Learning your handwriting style...',
-              estimated_time: '2-3 minutes',
-              stage: 'analyzing_samples',
-              progress: 0
-            }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            })
+              training_status: 'completed',
+              sample_images: samples.slice(0, 5),
+              style_model_path: trainingResult.modelId,
+              training_started_at: new Date().toISOString(),
+              training_completed_at: new Date().toISOString()
+            });
+          
+          modelId = trainingResult.modelId;
+        } else {
+          console.log("Training failed or timed out, using fallback");
+          // Continue to fallback generation below
         }
       }
     } else if (samples.length > 0) {
-      // Anonymous user with samples - return training status
+      // Anonymous user with samples - try immediate training
       console.log("=== ANONYMOUS USER TRAINING ===");
       console.log(`Training style encoder with ${samples.length} samples for anonymous user...`);
       
-      // Start anonymous training in background
-      const anonymousModelId = `anonymous_${Date.now()}`;
-      trainModelInBackground(supabase, samples, null, anonymousModelId);
+      const trainingResult = await trainModelWithTimeout(samples, null, 120000); // 2 minutes
       
-      return new Response(JSON.stringify({
-        status: 'training',
-        model_id: anonymousModelId,
-        message: 'Learning your handwriting style...',
-        estimated_time: '2-3 minutes',
-        stage: 'analyzing_samples',
-        progress: 0,
-        note: 'Sign up to save your personalized handwriting style!'
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+      if (trainingResult.success) {
+        console.log("Anonymous training completed:", trainingResult.modelId);
+        modelId = trainingResult.modelId;
+      } else {
+        console.log("Anonymous training failed, using fallback");
+        // Continue to fallback generation below
+      }
     }
     
     // Step 2: Generate handwriting using trained model or fallback
@@ -291,6 +276,52 @@ serve(async (req) => {
     )
   }
 })
+
+// Training function with timeout for immediate results
+async function trainModelWithTimeout(samples: string[], userId: string | null, timeoutMs: number): Promise<{success: boolean, modelId?: string}> {
+  try {
+    console.log(`=== STARTING IMMEDIATE TRAINING ===`);
+    console.log(`Training with ${samples.length} samples, timeout: ${timeoutMs}ms`);
+    
+    const trainingUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/train_style'
+    
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+    
+    const trainingPayload = {
+      samples: samples.slice(0, 5),
+      user_id: userId
+    }
+    
+    const trainingResponse = await fetch(trainingUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(trainingPayload),
+      signal: controller.signal
+    })
+
+    clearTimeout(timeoutId)
+
+    if (trainingResponse.ok) {
+      const trainingData = await trainingResponse.json()
+      const trainedModelId = trainingData.model_id
+      
+      console.log(`Immediate training completed successfully`)
+      console.log(`Trained model ID: ${trainedModelId}`)
+      
+      return { success: true, modelId: trainedModelId }
+    } else {
+      const errorText = await trainingResponse.text()
+      console.log(`Immediate training failed: ${trainingResponse.status} - ${errorText}`)
+      return { success: false }
+    }
+  } catch (error) {
+    console.log(`Immediate training failed with error: ${error}`)
+    return { success: false }
+  }
+}
 
 // Background training function to prevent timeouts
 async function trainModelInBackground(supabase: any, samples: string[], userId: string, modelId: string) {
