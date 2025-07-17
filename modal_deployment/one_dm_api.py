@@ -24,6 +24,7 @@ image = (
         "matplotlib",
         "scipy",
         "scikit-image>=0.18.0",  # Required for style encoder training
+        "timm>=0.9.0",  # Required for image encoders in DiffusionPen
         "huggingface-hub",
         "safetensors",
         "xformers"  # For memory optimization
