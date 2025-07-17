@@ -130,11 +130,14 @@ const Index = () => {
           />
         );
       case 'capture':
-        return <HandwritingCapture onNext={(samples) => {
-          setHandwritingSamples(samples);
-          saveUserSamples(samples);
-          setCurrentStep('generate');
-        }} />;
+        return <HandwritingCapture 
+          onNext={(samples) => {
+            setHandwritingSamples(samples);
+            saveUserSamples(samples);
+            setCurrentStep('generate');
+          }} 
+          user={user}
+        />;
       case 'generate':
         return <NoteGenerator onNext={() => setCurrentStep('preview')} handwritingSamples={handwritingSamples} />;
       case 'preview':

@@ -86,14 +86,14 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
             .limit(1)
             .single();
 
-          if (data?.sample_images && !error) {
+          if (data?.sample_images && !error && Array.isArray(data.sample_images)) {
             console.log('✅ Found saved samples:', data.sample_images.length);
             const newUploadedImages = new Map<number, string>();
             const newCompleted = new Set<number>();
             
             // Map saved samples to sample indices
             data.sample_images.forEach((imageUrl: string, index: number) => {
-              if (index < sampleTexts.length) {
+              if (index < sampleTexts.length && typeof imageUrl === 'string') {
                 newUploadedImages.set(index, imageUrl);
                 newCompleted.add(index);
               }
