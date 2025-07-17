@@ -284,11 +284,21 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
             os.makedirs(model_dir, exist_ok=True)
             
             # Process and save training samples
-            for i, sample_b64 in enumerate(samples[:5]):  # Use up to 5 samples
+            for i, sample_data in enumerate(samples[:5]):  # Use up to 5 samples
                 try:
+                    # Handle base64 data URI format
+                    if sample_data.startswith('data:image/'):
+                        # Extract base64 data from data URI
+                        base64_data = sample_data.split(',')[1]
+                    else:
+                        # Assume it's already base64 encoded
+                        base64_data = sample_data
+                    
                     # Decode base64 image
-                    image_data = base64.b64decode(sample_b64)
+                    image_data = base64.b64decode(base64_data)
                     ref_image = Image.open(io.BytesIO(image_data))
+                    
+                    print(f"Successfully loaded training sample {i}: {ref_image.size} {ref_image.mode}")
                     
                     # Clean and prepare sample image
                     cleaned_image = clean_sample_image(ref_image)
@@ -301,6 +311,8 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
                     
                 except Exception as e:
                     print(f"Error processing training sample {i}: {e}")
+                    print(f"Sample data type: {type(sample_data)}")
+                    print(f"Sample data preview: {str(sample_data)[:100]}...")
                     continue
             
             # Look for style encoder training script
