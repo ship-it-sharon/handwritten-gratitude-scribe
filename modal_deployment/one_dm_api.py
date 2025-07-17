@@ -321,32 +321,82 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
             style_encoder_script = os.path.join(diffusionpen_path, "style_encoder_train.py")
             
             if os.path.exists(style_encoder_script):
-                # Run style encoder training
-                cmd = [
-                    "python", style_encoder_script,
-                    "--style_dir", style_dir,
-                    "--save_path", model_dir,
-                    "--device", device
+                # First, check what arguments the script expects
+                help_cmd = ["python", style_encoder_script, "--help"]
+                
+                try:
+                    help_result = subprocess.run(
+                        help_cmd,
+                        cwd=diffusionpen_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=30
+                    )
+                    print(f"Style encoder script help output: {help_result.stdout}")
+                    print(f"Style encoder script help errors: {help_result.stderr}")
+                except Exception as e:
+                    print(f"Could not get help for style encoder script: {e}")
+                
+                # Try different argument patterns based on common DiffusionPen usage
+                possible_commands = [
+                    # Pattern 1: Using common DiffusionPen arguments
+                    [
+                        "python", style_encoder_script,
+                        "--dataset", style_dir,
+                        "--save_path", model_dir,
+                        "--device", device
+                    ],
+                    # Pattern 2: Minimal arguments
+                    [
+                        "python", style_encoder_script,
+                        style_dir,
+                        model_dir
+                    ],
+                    # Pattern 3: Different naming convention
+                    [
+                        "python", style_encoder_script,
+                        "--input_dir", style_dir,
+                        "--output_dir", model_dir
+                    ]
                 ]
                 
-                print(f"Running style encoder training: {' '.join(cmd)}")
+                training_successful = False
+                for i, cmd in enumerate(possible_commands):
+                    print(f"Trying training command pattern {i+1}: {' '.join(cmd)}")
+                    
+                    try:
+                        result = subprocess.run(
+                            cmd,
+                            cwd=diffusionpen_path,
+                            capture_output=True,
+                            text=True,
+                            timeout=300  # 5 minute timeout
+                        )
+                        
+                        print(f"Command stdout: {result.stdout}")
+                        print(f"Command stderr: {result.stderr}")
+                        
+                        if result.returncode == 0:
+                            print(f"Style encoder training completed successfully with pattern {i+1}")
+                            training_successful = True
+                            break
+                        else:
+                            print(f"Pattern {i+1} failed with return code: {result.returncode}")
+                            
+                    except subprocess.TimeoutExpired:
+                        print(f"Pattern {i+1} timed out")
+                        continue
+                    except Exception as e:
+                        print(f"Pattern {i+1} failed with exception: {e}")
+                        continue
                 
-                result = subprocess.run(
-                    cmd,
-                    cwd=diffusionpen_path,
-                    capture_output=True,
-                    text=True,
-                    timeout=300  # 5 minute timeout
-                )
-                
-                if result.returncode == 0:
-                    print("Style encoder training completed successfully")
+                if training_successful:
                     # Generate unique model ID
                     import uuid
                     model_id = f"model_{user_id}_{uuid.uuid4().hex[:8]}"
                     return model_id
                 else:
-                    print(f"Style encoder training failed: {result.stderr}")
+                    print("All training command patterns failed")
                     return None
             else:
                 print("style_encoder_train.py not found, skipping training")
