@@ -42,9 +42,10 @@ diffusion_model = None
 
 @app.function(
     image=image,
-    gpu="L40S",  # L40S recommended for large models and better performance
-    timeout=300,  # 5 minutes timeout for model loading and inference
-    keep_warm=1   # Keep one instance warm for faster response
+    gpu="A100",  # A100 for best quality and performance
+    timeout=1800,  # 30 minutes timeout for complex training and generation
+    keep_warm=1,   # Keep one instance warm for faster response
+    memory=32768   # 32GB RAM for handling large models and datasets
 )
 @modal.asgi_app()
 def fastapi_app():
@@ -337,16 +338,19 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
                 except Exception as e:
                     print(f"Could not get help for style encoder script: {e}")
                 
-                # Use correct DiffusionPen arguments based on actual source code analysis
+                # Use best DiffusionPen model for optimal quality results
                 cmd = [
                     "python", style_encoder_script,
-                    "--model", "mobilenetv2_100",  # Default CNN model from source
+                    "--model", "resnet50",  # Higher quality model for best results
                     "--dataset", "iam",  # Required dataset parameter
-                    "--batch_size", "32",  # Smaller batch size for few samples
-                    "--epochs", "10",  # Fewer epochs for few-shot learning  
+                    "--batch_size", "16",  # Reduced batch size for A100 optimization
+                    "--epochs", "20",  # More epochs for better style learning
+                    "--lr", "0.001",  # Optimal learning rate for few-shot learning
                     "--device", device,
                     "--save_path", model_dir,
-                    "--mode", "mixed"  # DiffusionPen's hybrid approach (classification + metric learning)
+                    "--mode", "mixed",  # DiffusionPen's hybrid approach
+                    "--augment",  # Enable data augmentation for better generalization
+                    "--early_stopping"  # Prevent overfitting
                 ]
                 
                 print(f"Running DiffusionPen style training: {' '.join(cmd)}")
@@ -357,7 +361,7 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
                         cwd=diffusionpen_path,
                         capture_output=True,
                         text=True,
-                        timeout=600  # 10 minute timeout for training
+                        timeout=1200  # 20 minute timeout for high-quality training
                     )
                     
                     print(f"Training stdout: {result.stdout}")

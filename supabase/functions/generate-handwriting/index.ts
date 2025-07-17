@@ -61,8 +61,8 @@ serve(async (req) => {
     );
 
     // Try to call Modal API with retries (Modal apps go idle and need warmup time)
-    const maxRetries = 3
-    const timeoutMs = 120000 // 2 minutes for Modal cold start
+    const maxRetries = 2  // Reduced retries to prevent total timeout
+    const timeoutMs = 300000 // 5 minutes for high-quality model processing
     
     console.log('=== STARTING MODAL API ATTEMPTS ===')
     
@@ -85,104 +85,47 @@ serve(async (req) => {
       if (existingModel) {
         console.log("Found existing trained model:", existingModel.model_id);
         modelId = existingModel.model_id;
-      } else {
-        console.log("No existing model found, starting training process...");
-        
-        // Create new training record
-        const newModelId = `style_model_${userId}_${Date.now()}`;
-        const { data: newModel, error: insertError } = await supabase
-          .from('user_style_models')
-          .insert({
-            user_id: userId,
-            model_id: newModelId,
-            training_status: 'training',
-            sample_images: samples.slice(0, 5), // Store the samples used for training
-            training_started_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-          
-        if (insertError) {
-          console.error("Error creating training record:", insertError);
         } else {
-          console.log("Created training record:", newModel?.model_id);
+          console.log("No existing model found, starting training process...");
           
-          console.log(`=== STARTING TRAINING STEP ===`);
-          console.log(`Training style encoder with ${samples.length} samples...`);
-          
-          // Attempt training with Modal API
-          for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-              console.log(`Attempting training API call (attempt ${attempt}/${maxRetries})...`)
-              
-              const trainingUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/train_style'
-              console.log(`Training URL: ${trainingUrl}`)
-              
-              const controller = new AbortController()
-              const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-              
-              const trainingPayload = {
-                samples: samples.slice(0, 5),
-                user_id: userId
+          // Create new training record
+          const newModelId = `style_model_${userId}_${Date.now()}`;
+          const { data: newModel, error: insertError } = await supabase
+            .from('user_style_models')
+            .insert({
+              user_id: userId,
+              model_id: newModelId,
+              training_status: 'training',
+              sample_images: samples.slice(0, 5), // Store the samples used for training
+              training_started_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+            
+          if (insertError) {
+            console.error("Error creating training record:", insertError);
+          } else {
+            console.log("Created training record:", newModel?.model_id);
+            
+            // Use background processing for training to prevent timeout
+            EdgeRuntime.waitUntil(trainModelInBackground(supabase, samples, userId, newModelId));
+            
+            // Return immediately while training happens in background
+            return new Response(JSON.stringify({
+              handwritingSvg: generateHandwritingSVG(body.text, body.styleCharacteristics || {}),
+              model_id: newModelId,
+              training_status: 'training',
+              message: 'Training in progress. Future requests will use your trained model.',
+              styleCharacteristics: {
+                slant: body.styleCharacteristics?.slant || 0.1,
+                spacing: body.styleCharacteristics?.spacing || 1.0,
+                strokeWidth: body.styleCharacteristics?.strokeWidth || 2.0,
+                baseline: body.styleCharacteristics?.baseline || "natural",
+                pressure: body.styleCharacteristics?.pressure || 1.0
               }
-              
-              const trainingResponse = await fetch(trainingUrl, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(trainingPayload),
-                signal: controller.signal
-              })
-
-              clearTimeout(timeoutId)
-
-              if (trainingResponse.ok) {
-                const trainingData = await trainingResponse.json()
-                modelId = trainingData.model_id
-                
-                // Update training record as completed
-                await supabase
-                  .from('user_style_models')
-                  .update({
-                    training_status: 'completed',
-                    style_model_path: modelId, // Store the model path/ID
-                    training_completed_at: new Date().toISOString()
-                  })
-                  .eq('model_id', newModelId);
-                
-                console.log(`Style encoder training completed successfully on attempt ${attempt}`)
-                console.log(`Model ID: ${modelId}`)
-                break
-              } else {
-                console.log(`Training attempt ${attempt} failed with status: ${trainingResponse.status}`)
-                if (attempt === maxRetries) {
-                  // Update training record as failed
-                  await supabase
-                    .from('user_style_models')
-                    .update({
-                      training_status: 'failed'
-                    })
-                    .eq('model_id', newModelId);
-                  
-                  console.log('Training failed after all attempts, proceeding with fallback generation')
-                }
-              }
-            } catch (error) {
-              console.log(`Training attempt ${attempt} failed with error: ${error}`)
-              if (attempt === maxRetries) {
-                // Update training record as failed
-                await supabase
-                  .from('user_style_models')
-                  .update({
-                    training_status: 'failed'
-                  })
-                  .eq('model_id', newModelId);
-                
-                console.log('Training failed after all attempts, proceeding with fallback generation')
-              }
-            }
-          }
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            })
         }
       }
     } else if (samples.length > 0) {
@@ -383,6 +326,81 @@ serve(async (req) => {
     )
   }
 })
+
+// Background training function to prevent timeouts
+async function trainModelInBackground(supabase: any, samples: string[], userId: string, modelId: string) {
+  console.log(`=== BACKGROUND TRAINING STARTED ===`);
+  console.log(`Training style encoder with ${samples.length} samples for model ${modelId}...`);
+  
+  const maxRetries = 3;
+  const timeoutMs = 600000; // 10 minutes for background training
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Background training attempt ${attempt}/${maxRetries}...`)
+      
+      const trainingUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/train_style'
+      
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+      
+      const trainingPayload = {
+        samples: samples.slice(0, 5),
+        user_id: userId
+      }
+      
+      const trainingResponse = await fetch(trainingUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(trainingPayload),
+        signal: controller.signal
+      })
+
+      clearTimeout(timeoutId)
+
+      if (trainingResponse.ok) {
+        const trainingData = await trainingResponse.json()
+        const trainedModelId = trainingData.model_id
+        
+        // Update training record as completed
+        await supabase
+          .from('user_style_models')
+          .update({
+            training_status: 'completed',
+            style_model_path: trainedModelId,
+            training_completed_at: new Date().toISOString()
+          })
+          .eq('model_id', modelId);
+        
+        console.log(`Background training completed successfully for model ${modelId}`)
+        console.log(`Trained model ID: ${trainedModelId}`)
+        return
+      } else {
+        const errorText = await trainingResponse.text()
+        console.log(`Background training attempt ${attempt} failed: ${trainingResponse.status} - ${errorText}`)
+      }
+    } catch (error) {
+      console.log(`Background training attempt ${attempt} failed with error: ${error}`)
+    }
+    
+    // Exponential backoff
+    if (attempt < maxRetries) {
+      await new Promise(resolve => setTimeout(resolve, 5000 * attempt))
+    }
+  }
+  
+  // Mark as failed if all attempts failed
+  await supabase
+    .from('user_style_models')
+    .update({
+      training_status: 'failed'
+    })
+    .eq('model_id', modelId);
+  
+  console.log(`Background training failed for model ${modelId} after all attempts`)
+}
 
 function generateHandwritingSVG(text: string, styleParams: any): string {
   // Enhanced handwriting generation with more realistic letter forms
