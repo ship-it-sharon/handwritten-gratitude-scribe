@@ -90,7 +90,7 @@ serve(async (req) => {
         
         // Try immediate training with shorter timeout
         const newModelId = `style_model_${userId}_${Date.now()}`;
-        const trainingResult = await trainModelWithTimeout(samples, userId, 120000); // 2 minutes
+        const trainingResult = await trainModelWithTimeout(samples, userId, 300000); // 5 minutes
         
         if (trainingResult.success) {
           console.log("Training completed successfully:", trainingResult.modelId);
@@ -119,7 +119,7 @@ serve(async (req) => {
       console.log("=== ANONYMOUS USER TRAINING ===");
       console.log(`Training style encoder with ${samples.length} samples for anonymous user...`);
       
-      const trainingResult = await trainModelWithTimeout(samples, null, 120000); // 2 minutes
+      const trainingResult = await trainModelWithTimeout(samples, null, 300000); // 5 minutes
       
       if (trainingResult.success) {
         console.log("Anonymous training completed:", trainingResult.modelId);
