@@ -200,11 +200,7 @@ ${formData.personalMessage ? `${formData.personalMessage}\n\n` : ''}With love an
               {generatedNote ? (
                 <HandwritingPreview 
                   text={generatedNote}
-                  samples={handwritingSamples || [
-                    // Test samples - these are placeholder base64 strings for testing
-                    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-                    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-                  ]}
+                  samples={handwritingSamples}
                 />
               ) : (
                 <Card className="p-6 h-full bg-paper shadow-soft">
