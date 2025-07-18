@@ -79,6 +79,8 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
         return;
       }
       
+      console.log('Generate response:', response, 'Type:', typeof response);
+      
       if (typeof response === 'object' && 'status' in response) {
         const statusResponse = response as any;
         if (statusResponse.status === 'training') {
@@ -88,8 +90,10 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
         }
       } else if (typeof response === 'string') {
         // Regular SVG response
+        console.log('Setting generatedSvg:', response.substring(0, 100) + '...');
         setGeneratedSvg(response);
         setTrainingStatus(null);
+        setShowGenerateAnother(true);
       } else {
         console.warn('Unexpected response format:', response);
       }
