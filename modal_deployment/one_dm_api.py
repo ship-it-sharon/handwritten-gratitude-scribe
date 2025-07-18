@@ -9,6 +9,7 @@ app = modal.App("diffusionpen-handwriting")
 # Define the image with necessary ML dependencies for DiffusionPen
 image = (
     modal.Image.debian_slim(python_version="3.10")
+    .env({"REBUILD_CACHE": "v2"})
     .apt_install("git", "wget", "libgl1-mesa-glx", "libglib2.0-0")
     .pip_install([
         "fastapi[standard]",
