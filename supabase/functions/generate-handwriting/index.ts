@@ -54,83 +54,13 @@ serve(async (req) => {
     console.log('Raw samples received:', JSON.stringify(body.samples?.slice(0, 2)?.map(s => s?.substring(0, 50)) || [], null, 2))
     console.log('Samples array check:', Array.isArray(body.samples), 'Length:', body.samples?.length || 0)
 
-    // Initialize Supabase client
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
     // Try to call Modal API with retries (Modal apps go idle and need warmup time)
     const maxRetries = 2  // Reduced retries to prevent total timeout
     const timeoutMs = 300000 // 5 minutes for high-quality model processing
     
     console.log('=== STARTING MODAL API ATTEMPTS ===')
     
-    let modelId = null;
-    
-    // Step 1: Handle user-specific style training and model management
-    if (userId && samples.length > 0) {
-      console.log('=== CHECKING FOR EXISTING USER STYLE MODEL ===');
-      
-      // Check if user already has a trained model
-      const { data: existingModel } = await supabase
-        .from('user_style_models')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('training_status', 'completed')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-      
-      if (existingModel) {
-        console.log("Found existing trained model:", existingModel.model_id);
-        modelId = existingModel.model_id;
-      } else {
-        console.log("No existing model found, attempting immediate training...");
-        
-        // Try immediate training with shorter timeout
-        const newModelId = `style_model_${userId}_${Date.now()}`;
-        const trainingResult = await trainModelWithTimeout(samples, userId, 300000); // 5 minutes
-        
-        if (trainingResult.success) {
-          console.log("Training completed successfully:", trainingResult.modelId);
-          
-          // Save the trained model
-          await supabase
-            .from('user_style_models')
-            .insert({
-              user_id: userId,
-              model_id: newModelId,
-              training_status: 'completed',
-              sample_images: samples.slice(0, 5),
-              style_model_path: trainingResult.modelId,
-              training_started_at: new Date().toISOString(),
-              training_completed_at: new Date().toISOString()
-            });
-          
-          modelId = trainingResult.modelId;
-        } else {
-          console.log("Training failed or timed out, using fallback");
-          // Continue to fallback generation below
-        }
-      }
-    } else if (samples.length > 0) {
-      // Anonymous user with samples - try immediate training
-      console.log("=== ANONYMOUS USER TRAINING ===");
-      console.log(`Training style encoder with ${samples.length} samples for anonymous user...`);
-      
-      const trainingResult = await trainModelWithTimeout(samples, null, 300000); // 5 minutes
-      
-      if (trainingResult.success) {
-        console.log("Anonymous training completed:", trainingResult.modelId);
-        modelId = trainingResult.modelId;
-      } else {
-        console.log("Anonymous training failed, using fallback");
-        // Continue to fallback generation below
-      }
-    }
-    
-    // Step 2: Generate handwriting using trained model or fallback
+    // Step 1: Generate handwriting using Modal API with user samples
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`Attempting generation API call (attempt ${attempt}/${maxRetries})...`)
@@ -156,7 +86,8 @@ serve(async (req) => {
         console.log('Making POST request to Modal API...')
         const requestPayload = {
           text: body.text,
-          model_id: modelId,
+          samples: samples.length > 0 ? samples : undefined,
+          user_id: userId,
           styleCharacteristics: body.styleCharacteristics || {}
         }
         console.log('Request payload:', JSON.stringify(requestPayload, null, 2))
@@ -180,12 +111,6 @@ serve(async (req) => {
           console.log('Modal response data:', JSON.stringify(modalData, null, 2))
           console.log('Modal handwritingSvg length:', modalData.handwritingSvg?.length || 'undefined')
           
-          // Check if Modal fell back to a generic style profile (indicates training failure)
-          if (modalData.model_id && modalData.model_id.includes('style_profile_None_')) {
-            console.log("⚠️ Modal training failed, fell back to generic style profile:", modalData.model_id);
-            throw new Error("Modal training failed - fell back to generic style profile");
-          }
-          
           // Check if we got actual handwriting or a placeholder/error image
           if (modalData.handwritingSvg) {
             const svgContent = modalData.handwritingSvg
@@ -204,7 +129,6 @@ serve(async (req) => {
           
           const responseData = {
             handwritingSvg: modalData.handwritingSvg,
-            model_id: modelId,
             styleCharacteristics: modalData.styleCharacteristics || {
               slant: 0.15,
               spacing: 1.1,
@@ -240,7 +164,7 @@ serve(async (req) => {
         
         // Check if it's a timeout
         if (modalError.name === 'AbortError') {
-          console.log('Modal API call timed out after 2 minutes')
+          console.log('Modal API call timed out after 5 minutes')
         }
         
         // If it's the last attempt, fall back to local generation
@@ -282,134 +206,6 @@ serve(async (req) => {
     )
   }
 })
-
-// Training function with timeout for immediate results
-async function trainModelWithTimeout(samples: string[], userId: string | null, timeoutMs: number): Promise<{success: boolean, modelId?: string}> {
-  try {
-    console.log(`=== STARTING IMMEDIATE TRAINING ===`);
-    console.log(`Training with ${samples.length} samples, timeout: ${timeoutMs}ms`);
-    
-    const trainingUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/train_style'
-    
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-    
-    const trainingPayload = {
-      samples: samples.slice(0, 5),
-      user_id: userId
-    }
-    
-    const trainingResponse = await fetch(trainingUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(trainingPayload),
-      signal: controller.signal
-    })
-
-    clearTimeout(timeoutId)
-
-    if (trainingResponse.ok) {
-      const trainingData = await trainingResponse.json()
-      const trainedModelId = trainingData.model_id
-      
-      // Check if training actually succeeded or fell back to generic profile
-      if (trainedModelId && trainedModelId.includes('style_profile_None_')) {
-        console.log(`Training failed - Modal fell back to generic profile: ${trainedModelId}`)
-        console.log('This usually indicates a script argument mismatch in Modal API')
-        return { success: false }
-      }
-      
-      console.log(`Immediate training completed successfully`)
-      console.log(`Trained model ID: ${trainedModelId}`)
-      
-      return { success: true, modelId: trainedModelId }
-    } else {
-      const errorText = await trainingResponse.text()
-      console.log(`Immediate training failed: ${trainingResponse.status} - ${errorText}`)
-      return { success: false }
-    }
-  } catch (error) {
-    console.log(`Immediate training failed with error: ${error}`)
-    return { success: false }
-  }
-}
-
-// Background training function to prevent timeouts
-async function trainModelInBackground(supabase: any, samples: string[], userId: string, modelId: string) {
-  console.log(`=== BACKGROUND TRAINING STARTED ===`);
-  console.log(`Training style encoder with ${samples.length} samples for model ${modelId}...`);
-  
-  const maxRetries = 3;
-  const timeoutMs = 600000; // 10 minutes for background training
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`Background training attempt ${attempt}/${maxRetries}...`)
-      
-      const trainingUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/train_style'
-      
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-      
-      const trainingPayload = {
-        samples: samples.slice(0, 5),
-        user_id: userId
-      }
-      
-      const trainingResponse = await fetch(trainingUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(trainingPayload),
-        signal: controller.signal
-      })
-
-      clearTimeout(timeoutId)
-
-      if (trainingResponse.ok) {
-        const trainingData = await trainingResponse.json()
-        const trainedModelId = trainingData.model_id
-        
-        // Update training record as completed
-        await supabase
-          .from('user_style_models')
-          .update({
-            training_status: 'completed',
-            style_model_path: trainedModelId,
-            training_completed_at: new Date().toISOString()
-          })
-          .eq('model_id', modelId);
-        
-        console.log(`Background training completed successfully for model ${modelId}`)
-        console.log(`Trained model ID: ${trainedModelId}`)
-        return
-      } else {
-        const errorText = await trainingResponse.text()
-        console.log(`Background training attempt ${attempt} failed: ${trainingResponse.status} - ${errorText}`)
-      }
-    } catch (error) {
-      console.log(`Background training attempt ${attempt} failed with error: ${error}`)
-    }
-    
-    // Exponential backoff
-    if (attempt < maxRetries) {
-      await new Promise(resolve => setTimeout(resolve, 5000 * attempt))
-    }
-  }
-  
-  // Mark as failed if all attempts failed
-  await supabase
-    .from('user_style_models')
-    .update({
-      training_status: 'failed'
-    })
-    .eq('model_id', modelId);
-  
-  console.log(`Background training failed for model ${modelId} after all attempts`)
-}
 
 function generateHandwritingSVG(text: string, styleParams: any): string {
   // Enhanced handwriting generation with more realistic letter forms
@@ -497,15 +293,6 @@ function generateRealisticLetter(char: string, x: number, y: number, style: any,
       const [p5x, p5y] = transformPoint(x + 12, y - 8)
       return `<path d="M ${p1x} ${p1y} Q ${p2x} ${p2y} ${p3x} ${p3y} M ${p4x} ${p4y} L ${p5x} ${p5y}"/>`
     }
-    case 'b': {
-      const [p1x, p1y] = transformPoint(x, y - 25)
-      const [p2x, p2y] = transformPoint(x, y + 2)
-      const [p3x, p3y] = transformPoint(x, y - 12)
-      const [p4x, p4y] = transformPoint(x + 10, y - 16)
-      const [p5x, p5y] = transformPoint(x + 10, y - 8)
-      const [p6x, p6y] = transformPoint(x, y - 4)
-      return `<path d="M ${p1x} ${p1y} L ${p2x} ${p2y} M ${p3x} ${p3y} Q ${p4x} ${p4y} ${p5x} ${p5y} Q ${p6x} ${p6y} ${p3x} ${p3y}"/>`
-    }
     case 'e': {
       const [cx, cy] = transformPoint(x + 7, y - 8)
       const [p1x, p1y] = transformPoint(x, y - 8)
@@ -531,22 +318,6 @@ function generateRealisticLetter(char: string, x: number, y: number, style: any,
       const rx = 7 + tremor()
       const ry = 8 + tremor()
       return `<ellipse cx="${cx}" cy="${cy}" rx="${Math.abs(rx)}" ry="${Math.abs(ry)}" fill="none"/>`
-    }
-    case 'r': {
-      const [p1x, p1y] = transformPoint(x, y - 15)
-      const [p2x, p2y] = transformPoint(x, y + 2)
-      const [p3x, p3y] = transformPoint(x, y - 10)
-      const [p4x, p4y] = transformPoint(x + 8, y - 15)
-      const [p5x, p5y] = transformPoint(x + 12, y - 12)
-      return `<path d="M ${p1x} ${p1y} L ${p2x} ${p2y} M ${p3x} ${p3y} Q ${p4x} ${p4y} ${p5x} ${p5y}"/>`
-    }
-    case 'w': {
-      const [p1x, p1y] = transformPoint(x, y - 15)
-      const [p2x, p2y] = transformPoint(x + 4, y + 2)
-      const [p3x, p3y] = transformPoint(x + 8, y - 8)
-      const [p4x, p4y] = transformPoint(x + 12, y + 2)
-      const [p5x, p5y] = transformPoint(x + 16, y - 15)
-      return `<path d="M ${p1x} ${p1y} L ${p2x} ${p2y} L ${p3x} ${p3y} L ${p4x} ${p4y} L ${p5x} ${p5y}"/>`
     }
     default: {
       // Fallback for other characters
