@@ -43,11 +43,18 @@ image = (
         "cd /root/DiffusionPen && cp -r ./datasets_and_models/saved_iam_data ./saved_iam_data || mkdir -p ./saved_iam_data",
         "cd /root/DiffusionPen && cp -r ./datasets_and_models/style_models ./style_models || mkdir -p ./style_models", 
         "cd /root/DiffusionPen && cp -r ./datasets_and_models/diffusionpen_iam_model_path ./diffusionpen_iam_model_path || mkdir -p ./diffusionpen_iam_model_path",
+        # Download and set up pre-trained models for style encoder
+        "cd /root/DiffusionPen && mkdir -p ./pretrained_models",
+        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; import os; os.makedirs('pretrained_models', exist_ok=True); hf_hub_download(repo_id='konnik/DiffusionPen', filename='pretrained_models/resnet18_pretrained.pth', local_dir='.')\" || echo 'Could not download resnet18 pretrained model'",
+        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='pretrained_models/style_encoder.pth', local_dir='.')\" || echo 'Could not download style encoder model'",
         # Create IAM dataset structure for the training script
         "cd /root/DiffusionPen && mkdir -p ./iam_data/ascii ./iam_data/words ./utils/aachen_iam_split",
         # Create the IAM_dataset_PIL_style directory with proper structure
         "cd /root/DiffusionPen && mkdir -p ./IAM_dataset_PIL_style",
         "cd /root/DiffusionPen && cp ./saved_iam_data/*.pt ./IAM_dataset_PIL_style/ 2>/dev/null || echo 'No .pt files to copy'",
+        # Set up IAM data structure that the training script expects
+        "cd /root/DiffusionPen && cp -r ./datasets_and_models/iam_data/* ./iam_data/ 2>/dev/null || echo 'No IAM data to copy'",
+        "cd /root/DiffusionPen && cp -r ./datasets_and_models/utils/* ./utils/ 2>/dev/null || echo 'No utils to copy'",
     ])
 )
 
