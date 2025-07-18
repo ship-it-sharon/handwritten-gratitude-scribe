@@ -9,7 +9,7 @@ app = modal.App("diffusionpen-handwriting")
 # Define the image with necessary ML dependencies for DiffusionPen
 image = (
     modal.Image.debian_slim(python_version="3.10")
-    .env({"REBUILD_CACHE": "v2"})
+    .env({"REBUILD_CACHE": "v3"})
     .apt_install("git", "wget", "libgl1-mesa-glx", "libglib2.0-0")
     .pip_install([
         "fastapi[standard]",
@@ -361,15 +361,16 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
                     
                     # Use proper DiffusionPen training command with user's style samples
                     try:
-                        # Updated command to work with user's custom samples
+                        # Updated command with correct mode parameter
                         cmd = [
                             "python", style_encoder_script,
-                            "--dataset", style_dir,  # Use our custom samples directory
+                            "--dataset", "iam",  # Use IAM dataset for DiffusionPen
                             "--batch_size", "4",
-                            "--epochs", "10", 
+                            "--epochs", "5",  # Reduced epochs for faster training
                             "--device", device,
                             "--save_path", model_dir,
-                            "--mode", "finetune"  # Use finetune mode for custom samples
+                            "--mode", "mixed",  # Use mixed mode for DiffusionPen
+                            "--pretrained", "1"  # Use pretrained models
                         ]
                         
                         print(f"Running DiffusionPen style training: {' '.join(cmd)}")
