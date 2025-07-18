@@ -43,18 +43,26 @@ image = (
         "cd /root/DiffusionPen && cp -r ./datasets_and_models/saved_iam_data ./saved_iam_data || mkdir -p ./saved_iam_data",
         "cd /root/DiffusionPen && cp -r ./datasets_and_models/style_models ./style_models || mkdir -p ./style_models", 
         "cd /root/DiffusionPen && cp -r ./datasets_and_models/diffusionpen_iam_model_path ./diffusionpen_iam_model_path || mkdir -p ./diffusionpen_iam_model_path",
-        # Download and set up pre-trained models for style encoder
-        "cd /root/DiffusionPen && mkdir -p ./pretrained_models",
-        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; import os; os.makedirs('pretrained_models', exist_ok=True); hf_hub_download(repo_id='konnik/DiffusionPen', filename='pretrained_models/resnet18_pretrained.pth', local_dir='.')\" || echo 'Could not download resnet18 pretrained model'",
-        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='pretrained_models/style_encoder.pth', local_dir='.')\" || echo 'Could not download style encoder model'",
-        # Create IAM dataset structure for the training script
-        "cd /root/DiffusionPen && mkdir -p ./iam_data/ascii ./iam_data/words ./utils/aachen_iam_split",
-        # Create the IAM_dataset_PIL_style directory with proper structure
-        "cd /root/DiffusionPen && mkdir -p ./IAM_dataset_PIL_style",
-        "cd /root/DiffusionPen && cp ./saved_iam_data/*.pt ./IAM_dataset_PIL_style/ 2>/dev/null || echo 'No .pt files to copy'",
-        # Set up IAM data structure that the training script expects
-        "cd /root/DiffusionPen && cp -r ./datasets_and_models/iam_data/* ./iam_data/ 2>/dev/null || echo 'No IAM data to copy'",
-        "cd /root/DiffusionPen && cp -r ./datasets_and_models/utils/* ./utils/ 2>/dev/null || echo 'No utils to copy'",
+        # Download and set up all required pre-trained models and data
+        "cd /root/DiffusionPen && mkdir -p ./pretrained_models ./checkpoints",
+        # Download the main DiffusionPen model checkpoints
+        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='diffusionpen_iam_model_path/pytorch_model.bin', local_dir='.')\" || echo 'Main model download failed'",
+        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='diffusionpen_iam_model_path/config.json', local_dir='.')\" || echo 'Config download failed'",
+        # Download style encoder and supporting models
+        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='pretrained_models/resnet18_pretrained.pth', local_dir='.')\" || echo 'ResNet18 download failed'",
+        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='pretrained_models/style_encoder.pth', local_dir='.')\" || echo 'Style encoder download failed'",
+        # Download the IAM word-level data that DiffusionPen expects
+        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='saved_iam_data/words_train.pt', local_dir='.')\" || echo 'IAM words train data failed'",
+        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='saved_iam_data/words_test.pt', local_dir='.')\" || echo 'IAM words test data failed'",
+        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='saved_iam_data/word_to_id.pkl', local_dir='.')\" || echo 'Word-to-ID mapping failed'",
+        # Download IAM character mappings and metadata
+        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='utils/aachen_iam_split/train.txt', local_dir='.')\" || echo 'IAM split train failed'",
+        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='utils/aachen_iam_split/test.txt', local_dir='.')\" || echo 'IAM split test failed'",
+        # Set up proper directory structure and permissions
+        "cd /root/DiffusionPen && find . -name '*.py' -exec chmod +x {} \\;",
+        "cd /root/DiffusionPen && ls -la diffusionpen_iam_model_path/ || echo 'Main model directory contents:'",
+        "cd /root/DiffusionPen && ls -la pretrained_models/ || echo 'Pretrained models directory contents:'",
+        "cd /root/DiffusionPen && ls -la saved_iam_data/ || echo 'IAM data directory contents:'",
     ])
 )
 
