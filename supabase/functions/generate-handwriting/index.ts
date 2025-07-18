@@ -51,45 +51,112 @@ serve(async (req) => {
     
     console.log(`Generating handwriting for: "${body.text}" with ${samples.length} reference samples`)
     console.log('User ID:', userId)
-    console.log('Raw samples received:', JSON.stringify(body.samples?.slice(0, 2)?.map(s => s?.substring(0, 50)) || [], null, 2))
-    console.log('Samples array check:', Array.isArray(body.samples), 'Length:', body.samples?.length || 0)
 
-    // Try to call Modal API with retries (Modal apps go idle and need warmup time)
-    const maxRetries = 2  // Reduced retries to prevent total timeout
-    const timeoutMs = 300000 // 5 minutes for high-quality model processing
+    // Initialize Supabase client
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    let trainedModelId = null;
     
-    console.log('=== STARTING MODAL API ATTEMPTS ===')
+    // Step 1: Handle model training and management
+    if (userId && samples.length > 0) {
+      console.log('=== CHECKING FOR EXISTING USER STYLE MODEL ===');
+      
+      // Check if user already has a trained model
+      const { data: existingModel } = await supabase
+        .from('user_style_models')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('training_status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (existingModel) {
+        console.log("Found existing trained model:", existingModel.model_id);
+        trainedModelId = existingModel.style_model_path;
+      } else {
+        console.log("No existing model found, checking for training in progress...");
+        
+        // Check if training is already in progress
+        const { data: trainingModel } = await supabase
+          .from('user_style_models')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('training_status', 'training')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+          
+        if (trainingModel) {
+          console.log("Training already in progress for user");
+          return new Response(JSON.stringify({
+            status: 'training',
+            message: 'Your handwriting style is being trained. This takes 10-15 minutes.',
+            estimated_completion: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+            model_id: trainingModel.model_id
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        
+        // Start new training
+        const newModelId = `user_${userId}_${Date.now()}`;
+        console.log("Starting training for new model:", newModelId);
+        
+        await supabase
+          .from('user_style_models')
+          .insert({
+            user_id: userId,
+            model_id: newModelId,
+            training_status: 'training',
+            sample_images: samples.slice(0, 5),
+            training_started_at: new Date().toISOString()
+          });
+        
+        // Start training process  
+        const trainingResult = await startTrainingProcess(samples, userId, newModelId, supabase);
+        
+        if (trainingResult.success) {
+          trainedModelId = trainingResult.modelId;
+        } else {
+          // Return training status for user feedback
+          return new Response(JSON.stringify({
+            status: 'training',
+            message: 'Training your handwriting style. Please wait 10-15 minutes.',
+            estimated_completion: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+            model_id: newModelId
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+      }
+    }
     
-    // Step 1: Generate handwriting using Modal API with user samples
+    // Step 2: Generate handwriting using trained model or fallback
+    const maxRetries = 2
+    const timeoutMs = 60000 // 1 minute for generation (training happens separately)
+    
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`Attempting generation API call (attempt ${attempt}/${maxRetries})...`)
         
         const modalUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/generate_handwriting'
-        console.log(`Modal URL: ${modalUrl}`)
-        
-        // Test basic connectivity first
-        console.log('Testing basic connectivity...')
-        try {
-          const testResponse = await fetch(modalUrl, { 
-            method: 'GET',
-            signal: AbortSignal.timeout(5000)
-          })
-          console.log(`Basic connectivity test status: ${testResponse.status}`)
-        } catch (connectError) {
-          console.error('Connectivity test failed:', connectError.message)
-        }
         
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
         
-        console.log('Making POST request to Modal API...')
         const requestPayload = {
           text: body.text,
-          samples: samples.length > 0 ? samples : undefined,
+          model_id: trainedModelId,
+          samples: trainedModelId ? undefined : samples, // Only send samples if no trained model
           user_id: userId,
           styleCharacteristics: body.styleCharacteristics || {}
         }
+        
+        console.log('Making POST request to Modal API...')
         console.log('Request payload:', JSON.stringify(requestPayload, null, 2))
         
         const modalResponse = await fetch(modalUrl, {
@@ -108,24 +175,7 @@ serve(async (req) => {
         if (modalResponse.ok) {
           const modalData = await modalResponse.json()
           console.log(`Modal API call successful on attempt ${attempt}`)
-          console.log('Modal response data:', JSON.stringify(modalData, null, 2))
           console.log('Modal handwritingSvg length:', modalData.handwritingSvg?.length || 'undefined')
-          
-          // Check if we got actual handwriting or a placeholder/error image
-          if (modalData.handwritingSvg) {
-            const svgContent = modalData.handwritingSvg
-            const containsHandwriting = svgContent.includes('<path') || svgContent.includes('stroke') || svgContent.includes('text')
-            const containsPen = svgContent.includes('pen') || svgContent.includes('marker')
-            console.log('SVG contains handwriting paths:', containsHandwriting)
-            console.log('SVG contains pen/marker:', containsPen)
-            console.log('SVG preview (first 300 chars):', svgContent.substring(0, 300))
-            
-            if (containsPen && !containsHandwriting) {
-              console.log('WARNING: Modal API returned pen/marker placeholder instead of handwriting')
-            }
-          }
-          
-          console.log('Modal styleCharacteristics:', modalData.styleCharacteristics)
           
           const responseData = {
             handwritingSvg: modalData.handwritingSvg,
@@ -134,9 +184,9 @@ serve(async (req) => {
               spacing: 1.1,
               strokeWidth: 2.2,
               baseline: "natural"
-            }
+            },
+            model_id: trainedModelId
           }
-          console.log('Final response data:', JSON.stringify(responseData, null, 2))
           
           return new Response(JSON.stringify(responseData), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -145,35 +195,21 @@ serve(async (req) => {
           const errorText = await modalResponse.text()
           console.log(`Modal API returned error on attempt ${attempt}: ${modalResponse.status} - ${errorText}`)
           
-          // If it's the last attempt, fall back to local generation
           if (attempt === maxRetries) {
             console.log('All Modal API attempts failed, falling back to local generation')
             break
           }
           
-          // Wait before retrying (exponential backoff)
           await new Promise(resolve => setTimeout(resolve, 2000 * attempt))
         }
       } catch (modalError) {
-        console.error(`Modal API attempt ${attempt} failed:`, {
-          message: modalError.message,
-          name: modalError.name,
-          stack: modalError.stack,
-          cause: modalError.cause
-        })
+        console.error(`Modal API attempt ${attempt} failed:`, modalError.message)
         
-        // Check if it's a timeout
-        if (modalError.name === 'AbortError') {
-          console.log('Modal API call timed out after 5 minutes')
-        }
-        
-        // If it's the last attempt, fall back to local generation
         if (attempt === maxRetries) {
           console.log('All Modal API attempts failed, falling back to local generation')
           break
         }
         
-        // Wait before retrying (exponential backoff)
         await new Promise(resolve => setTimeout(resolve, 2000 * attempt))
       }
     }
@@ -206,6 +242,79 @@ serve(async (req) => {
     )
   }
 })
+
+// Training function with proper status updates
+async function startTrainingProcess(samples: string[], userId: string, modelId: string, supabase: any): Promise<{success: boolean, modelId?: string}> {
+  try {
+    console.log(`=== STARTING DIFFUSIONPEN TRAINING ===`);
+    console.log(`Training model ${modelId} with ${samples.length} samples`);
+    
+    const trainingUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/train_style'
+    
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 1800000) // 30 minutes
+    
+    const trainingPayload = {
+      samples: samples.slice(0, 5),
+      user_id: userId,
+      model_id: modelId
+    }
+    
+    console.log('Sending training request to Modal...')
+    
+    const trainingResponse = await fetch(trainingUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(trainingPayload),
+      signal: controller.signal
+    })
+
+    clearTimeout(timeoutId)
+
+    if (trainingResponse.ok) {
+      const trainingData = await trainingResponse.json()
+      const trainedModelId = trainingData.model_id
+      
+      console.log(`Training completed successfully`)
+      console.log(`Trained model ID: ${trainedModelId}`)
+      
+      // Update training record as completed
+      await supabase
+        .from('user_style_models')
+        .update({
+          training_status: 'completed',
+          style_model_path: trainedModelId,
+          training_completed_at: new Date().toISOString()
+        })
+        .eq('model_id', modelId);
+      
+      return { success: true, modelId: trainedModelId }
+    } else {
+      const errorText = await trainingResponse.text()
+      console.log(`Training failed: ${trainingResponse.status} - ${errorText}`)
+      
+      await supabase
+        .from('user_style_models')
+        .update({ training_status: 'failed' })
+        .eq('model_id', modelId);
+        
+      return { success: false }
+    }
+  } catch (error) {
+    console.log(`Training failed with error: ${error}`)
+    
+    if (supabase) {
+      await supabase
+        .from('user_style_models')
+        .update({ training_status: 'failed' })
+        .eq('model_id', modelId);
+    }
+    
+    return { success: false }
+  }
+}
 
 function generateHandwritingSVG(text: string, styleParams: any): string {
   // Enhanced handwriting generation with more realistic letter forms

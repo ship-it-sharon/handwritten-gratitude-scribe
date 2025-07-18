@@ -20,6 +20,7 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
   const [isGenerating, setIsGenerating] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [trainingStatus, setTrainingStatus] = useState<any>(null);
+  const [showGenerateAnother, setShowGenerateAnother] = useState(false);
 
   // Get current user ID
   useEffect(() => {
@@ -230,13 +231,17 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
               className="gap-2"
             >
               <RotateCcw className="w-4 h-4" />
-              {isGenerating ? 'Regenerating...' : 'Try Again'}
+              {isGenerating ? 'Regenerating...' : 'Generate Another'}
             </Button>
           </div>
           
-          <div className="text-center">
+          <div className="text-center space-y-2">
             <p className="text-xs text-muted-foreground">
               ✨ AI-generated handwriting matching your unique style
+            </p>
+            <p className="text-xs text-muted-foreground">
+              💡 Love how it looks? Continue to create your thank you note!<br/>
+              🎯 Want it even more accurate? Collect a few more handwriting samples!
             </p>
           </div>
         </div>

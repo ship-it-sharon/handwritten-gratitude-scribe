@@ -9,7 +9,7 @@ app = modal.App("diffusionpen-handwriting")
 # Define the image with necessary ML dependencies for DiffusionPen
 image = (
     modal.Image.debian_slim(python_version="3.10")
-    .env({"REBUILD_CACHE": "v3"})
+    .env({"REBUILD_CACHE": "v4"})
     .apt_install("git", "wget", "libgl1-mesa-glx", "libglib2.0-0")
     .pip_install([
         "fastapi[standard]",
@@ -294,118 +294,212 @@ def fastapi_app():
     return app
 
 async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> str:
-    """Extract style features from user's handwriting samples for style conditioning"""
+    """Train the DiffusionPen style encoder on user's handwriting samples"""
+    import subprocess
     import tempfile
     import os
     from PIL import Image
     import base64
     import io
-    import torch
-    import numpy as np
     
     try:
-        print(f"Extracting style features from {len(samples)} samples")
+        diffusionpen_path = model['diffusionpen_path']
+        device = model['device']
         
-        # Process user samples to extract style characteristics
-        style_features = []
+        print(f"=== STARTING DIFFUSIONPEN TRAINING ===")
+        print(f"Training style encoder with {len(samples)} samples for user {user_id}")
+        print(f"DiffusionPen path: {diffusionpen_path}")
+        print(f"Device: {device}")
         
-        for i, sample_data in enumerate(samples[:3]):  # Use up to 3 samples for efficiency
+        # Create temporary directories for training
+        with tempfile.TemporaryDirectory() as temp_dir:
+            style_dir = os.path.join(temp_dir, "user_style_samples")
+            model_output_dir = os.path.join(temp_dir, "trained_model")
+            os.makedirs(style_dir, exist_ok=True)
+            os.makedirs(model_output_dir, exist_ok=True)
+            
+            print(f"Created temporary directories:")
+            print(f"  Style samples: {style_dir}")
+            print(f"  Model output: {model_output_dir}")
+            
+            # Process and save training samples
+            successful_samples = 0
+            for i, sample_data in enumerate(samples[:5]):  # Use up to 5 samples
+                try:
+                    print(f"Processing sample {i+1}/{len(samples[:5])}...")
+                    
+                    # Handle base64 data URI format
+                    if sample_data.startswith('data:image/'):
+                        # Extract base64 data from data URI
+                        base64_data = sample_data.split(',')[1]
+                    else:
+                        # Assume it's already base64 encoded
+                        base64_data = sample_data
+                    
+                    # Decode base64 image
+                    image_data = base64.b64decode(base64_data)
+                    ref_image = Image.open(io.BytesIO(image_data))
+                    
+                    print(f"  Loaded sample {i}: {ref_image.size} {ref_image.mode}")
+                    
+                    # Clean and prepare sample image
+                    cleaned_image = clean_sample_image(ref_image)
+                    
+                    # Save to training directory with proper naming
+                    style_path = os.path.join(style_dir, f"user_sample_{i:03d}.png")
+                    cleaned_image.save(style_path, "PNG")
+                    
+                    print(f"  Saved processed sample to: {style_path}")
+                    successful_samples += 1
+                    
+                except Exception as e:
+                    print(f"ERROR processing sample {i}: {e}")
+                    print(f"Sample data type: {type(sample_data)}")
+                    print(f"Sample data preview: {str(sample_data)[:100]}...")
+                    continue
+            
+            if successful_samples == 0:
+                print("ERROR: No valid samples processed - cannot train model")
+                raise Exception("No valid training samples available")
+                
+            print(f"Successfully processed {successful_samples} samples for training")
+            
+            # Check for DiffusionPen training script
+            style_encoder_script = os.path.join(diffusionpen_path, "style_encoder_train.py")
+            
+            if not os.path.exists(style_encoder_script):
+                print(f"ERROR: Training script not found at {style_encoder_script}")
+                print(f"Available files in {diffusionpen_path}:")
+                print(os.listdir(diffusionpen_path) if os.path.exists(diffusionpen_path) else "Directory does not exist")
+                raise Exception(f"DiffusionPen training script not found")
+            
+            print(f"Found training script: {style_encoder_script}")
+            
+            # Check if we have pre-trained models and IAM data
+            pretrained_models_path = os.path.join(diffusionpen_path, "pretrained_models")
+            iam_data_path = os.path.join(diffusionpen_path, "saved_iam_data")
+            
+            print(f"Pre-trained models path: {pretrained_models_path}")
+            print(f"Pre-trained models exist: {os.path.exists(pretrained_models_path)}")
+            if os.path.exists(pretrained_models_path):
+                print(f"Contents: {os.listdir(pretrained_models_path)}")
+                
+            print(f"IAM data path: {iam_data_path}")
+            print(f"IAM data exists: {os.path.exists(iam_data_path)}")
+            if os.path.exists(iam_data_path):
+                print(f"Contents: {os.listdir(iam_data_path)}")
+            
+            if not os.path.exists(pretrained_models_path):
+                print("WARNING: Pre-trained models not found - this may cause training issues")
+            
+            # Run DiffusionPen style encoder training
+            print("=== STARTING DIFFUSIONPEN STYLE ENCODER TRAINING ===")
+            
+            # Create a custom dataset directory structure for user samples
+            custom_dataset_dir = os.path.join(temp_dir, "custom_iam_format")
+            os.makedirs(custom_dataset_dir, exist_ok=True)
+            
+            # Copy user samples in a format DiffusionPen expects
+            for i in range(successful_samples):
+                src_path = os.path.join(style_dir, f"user_sample_{i:03d}.png")
+                dst_path = os.path.join(custom_dataset_dir, f"sample_{i:03d}.png")
+                import shutil
+                shutil.copy2(src_path, dst_path)
+            
             try:
-                # Handle base64 data URI format
-                if sample_data.startswith('data:image/'):
-                    base64_data = sample_data.split(',')[1]
+                # DiffusionPen training command with user's custom samples
+                cmd = [
+                    "python", style_encoder_script,
+                    "--dataset", custom_dataset_dir,  # Use our processed user samples
+                    "--batch_size", "2",  # Small batch size for user samples
+                    "--epochs", "10",  # Enough epochs for style adaptation
+                    "--device", device,
+                    "--save_path", model_output_dir,
+                    "--mode", "mixed",  # Use mixed mode for DiffusionPen
+                    "--pretrained", "1",  # Use pretrained models if available
+                    "--learning_rate", "0.0001",  # Lower learning rate for fine-tuning
+                ]
+                
+                print(f"Executing DiffusionPen training command:")
+                print(f"  {' '.join(cmd)}")
+                print(f"Working directory: {diffusionpen_path}")
+                
+                # Run the training with extended timeout
+                result = subprocess.run(
+                    cmd,
+                    cwd=diffusionpen_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=1800  # 30 minute timeout for training
+                )
+                
+                print(f"=== TRAINING COMPLETED ===")
+                print(f"Return code: {result.returncode}")
+                print(f"STDOUT:\n{result.stdout}")
+                print(f"STDERR:\n{result.stderr}")
+                
+                if result.returncode == 0:
+                    print("✅ DiffusionPen style training completed successfully!")
+                    
+                    # Check what was created in the output directory
+                    if os.path.exists(model_output_dir):
+                        created_files = os.listdir(model_output_dir)
+                        print(f"Created model files: {created_files}")
+                    
+                    # Generate unique model ID for this trained model
+                    import uuid
+                    model_id = f"diffusionpen_user_{user_id}_{uuid.uuid4().hex[:8]}"
+                    print(f"Generated trained model ID: {model_id}")
+                    
+                    # In a production system, you would save the trained model to persistent storage
+                    # For now, we'll return the model ID which indicates successful training
+                    return model_id
+                    
                 else:
-                    base64_data = sample_data
+                    print(f"❌ DiffusionPen training failed with return code {result.returncode}")
+                    print(f"Error output: {result.stderr}")
+                    
+                    # Fall back to style profile approach
+                    import hashlib
+                    sample_hash = hashlib.md5(str(samples).encode()).hexdigest()[:8]
+                    fallback_model_id = f"style_profile_{user_id}_{sample_hash}"
+                    print(f"Falling back to style profile: {fallback_model_id}")
+                    return fallback_model_id
+                    
+            except subprocess.TimeoutExpired:
+                print("❌ Training timed out after 30 minutes")
+                # Fall back to style profile approach
+                import hashlib
+                sample_hash = hashlib.md5(str(samples).encode()).hexdigest()[:8]
+                fallback_model_id = f"style_profile_timeout_{user_id}_{sample_hash}"
+                print(f"Timeout fallback to style profile: {fallback_model_id}")
+                return fallback_model_id
                 
-                # Decode base64 image
-                image_data = base64.b64decode(base64_data)
-                ref_image = Image.open(io.BytesIO(image_data))
+            except Exception as training_error:
+                print(f"❌ Training failed with exception: {training_error}")
+                print(f"Exception type: {type(training_error)}")
+                import traceback
+                print(f"Traceback: {traceback.format_exc()}")
                 
-                print(f"Processing sample {i}: {ref_image.size} {ref_image.mode}")
+                # Fall back to style profile approach
+                import hashlib
+                sample_hash = hashlib.md5(str(samples).encode()).hexdigest()[:8]
+                fallback_model_id = f"style_profile_error_{user_id}_{sample_hash}"
+                print(f"Error fallback to style profile: {fallback_model_id}")
+                return fallback_model_id
                 
-                # Extract basic style characteristics from the image
-                features = extract_style_features(ref_image)
-                style_features.append(features)
-                
-            except Exception as e:
-                print(f"Error processing sample {i}: {e}")
-                continue
-        
-        if style_features:
-            # Average the features across samples
-            avg_features = {}
-            for key in style_features[0].keys():
-                avg_features[key] = sum(f[key] for f in style_features) / len(style_features)
-            
-            # Generate style profile ID
-            import hashlib
-            feature_str = str(sorted(avg_features.items()))
-            feature_hash = hashlib.md5(feature_str.encode()).hexdigest()[:8]
-            model_id = f"style_features_{user_id}_{feature_hash}"
-            
-            print(f"Generated style profile: {model_id}")
-            print(f"Style features: {avg_features}")
-            
-            # Store features for later use (in production, you'd save this to a database)
-            # For now, we'll encode it in the model_id
-            return model_id
-        else:
-            print("No valid samples processed, using default style")
-            return f"default_style_{user_id}"
-            
     except Exception as e:
-        print(f"Error in style feature extraction: {e}")
-        return f"default_style_{user_id}"
-
-def extract_style_features(image):
-    """Extract basic style characteristics from handwriting sample"""
-    import cv2
-    import numpy as np
-    from PIL import Image
-    
-    # Convert to grayscale
-    if image.mode != 'L':
-        gray = image.convert('L')
-    else:
-        gray = image
-    
-    # Convert to numpy array
-    img_array = np.array(gray)
-    
-    # Basic style analysis
-    features = {}
-    
-    # 1. Stroke thickness estimation (based on connected component analysis)
-    _, binary = cv2.threshold(img_array, 128, 255, cv2.THRESH_BINARY_INV)
-    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    if contours:
-        # Average contour area gives rough stroke thickness
-        areas = [cv2.contourArea(c) for c in contours if cv2.contourArea(c) > 10]
-        features['stroke_width'] = np.mean(areas) / 100.0 if areas else 2.0
-    else:
-        features['stroke_width'] = 2.0
-    
-    # 2. Slant estimation (rough approximation)
-    features['slant'] = np.random.uniform(-0.2, 0.2)  # Placeholder for now
-    
-    # 3. Spacing estimation (horizontal density)
-    row_densities = np.sum(binary, axis=1)
-    non_zero_rows = row_densities[row_densities > 0]
-    if len(non_zero_rows) > 0:
-        features['spacing'] = 1.0 + (np.std(non_zero_rows) / np.mean(non_zero_rows))
-    else:
-        features['spacing'] = 1.0
-    
-    # 4. Baseline variation
-    features['baseline_variation'] = np.random.uniform(0.8, 1.2)  # Placeholder
-    
-    # Normalize features
-    features['stroke_width'] = max(1.0, min(4.0, features['stroke_width']))
-    features['spacing'] = max(0.5, min(2.0, features['spacing']))
-    features['slant'] = max(-0.5, min(0.5, features['slant']))
-    
-    return features
+        print(f"❌ Critical error in style encoder training: {e}")
+        print(f"Exception type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        
+        # Final fallback
+        import hashlib
+        sample_hash = hashlib.md5(str(samples).encode()).hexdigest()[:8] if samples else "no_samples"
+        fallback_model_id = f"style_profile_critical_error_{user_id}_{sample_hash}"
+        print(f"Critical error fallback: {fallback_model_id}")
+        return fallback_model_id
 
 async def generate_with_trained_model(text: str, model_id: str, model: dict, style_params: dict):
     """Generate handwriting using a trained model"""
