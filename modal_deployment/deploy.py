@@ -13,7 +13,7 @@ def deploy():
         
         # Deploy the Modal app
         result = subprocess.run([
-            "modal", "deploy", "one_dm_api.py"
+            "python3", "-m", "modal", "deploy", "one_dm_api.py"
         ], check=True, capture_output=True, text=True)
         
         print("Deployment successful!")
