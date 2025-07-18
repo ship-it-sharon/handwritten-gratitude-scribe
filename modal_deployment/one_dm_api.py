@@ -72,9 +72,9 @@ diffusion_model = None
 @app.function(
     image=image,
     gpu="A100",  # A100 for best quality and performance
-    timeout=1800,  # 30 minutes timeout for complex training and generation
+    timeout=900,   # 15 minutes timeout - reduced from 30 minutes to save costs
     keep_warm=1,   # Keep one instance warm for faster response
-    memory=32768   # 32GB RAM for handling large models and datasets
+    memory=16384   # 16GB RAM - reduced from 32GB to save costs
 )
 @modal.asgi_app()
 def fastapi_app():

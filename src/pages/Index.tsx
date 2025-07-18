@@ -62,30 +62,59 @@ const Index = () => {
       }
     });
 
-    const { data, error } = await supabase
-      .from('user_style_models')
-      .upsert({
-        user_id: user.id,
-        model_id: `user_${user.id}_${Date.now()}`,
-        sample_images: sampleImages,
-        training_status: 'pending'
-      }, {
-        onConflict: 'user_id'
-      })
-      .select()
-      .single();
+    try {
+      // First save to database
+      const { data, error } = await supabase
+        .from('user_style_models')
+        .upsert({
+          user_id: user.id,
+          model_id: `user_${user.id}_${Date.now()}`,
+          sample_images: sampleImages,
+          training_status: 'pending'
+        }, {
+          onConflict: 'user_id'
+        })
+        .select()
+        .single();
 
-    if (error) {
+      if (error) {
+        toast({
+          variant: "destructive",
+          title: "Error saving samples",
+          description: error.message,
+        });
+        return;
+      }
+
+      setUserStyleModel(data);
+      
+      // Start training process in background
+      const { error: trainingError } = await supabase.functions.invoke('train-handwriting', {
+        body: {
+          samples: sampleImages.slice(0, 5), // Limit to 5 samples for training
+          user_id: user.id
+        }
+      });
+
+      if (trainingError) {
+        console.error('Training failed to start:', trainingError);
+        toast({
+          variant: "destructive",
+          title: "Training failed to start",
+          description: trainingError.message,
+        });
+      } else {
+        toast({
+          title: "Training started!",
+          description: "Your handwriting model is being trained. This will take 10-15 minutes.",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error in saveUserSamples:', error);
       toast({
         variant: "destructive",
-        title: "Error saving samples",
+        title: "Error",
         description: error.message,
-      });
-    } else {
-      setUserStyleModel(data);
-      toast({
-        title: "Samples saved!",
-        description: "Your handwriting samples have been saved.",
       });
     }
   };
