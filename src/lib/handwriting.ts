@@ -28,26 +28,34 @@ export const analyzeHandwritingSamples = (samples: (string | HTMLCanvasElement)[
 
 export const generateHandwritingStyle = async (
   text: string, 
-  style: HandwritingStyle, 
+  style: HandwritingStyle | null, 
   samples?: string[],
-  userId?: string
+  modelId?: string
 ): Promise<string | { status: string; [key: string]: any }> => {
   try {
     const { supabase } = await import('@/integrations/supabase/client');
     
+    const requestBody: any = {
+      text,
+      samples: samples || [],
+    };
+
+    // If we have a model ID, use it for trained model generation
+    if (modelId) {
+      requestBody.model_id = modelId;
+    } else if (style) {
+      // Otherwise use style characteristics for initial preview
+      requestBody.styleCharacteristics = {
+        slant: style.slant,
+        spacing: style.spacing,
+        strokeWidth: style.strokeWidth,
+        baseline: style.baseline,
+        pressure: style.pressure,
+      };
+    }
+    
     const { data, error } = await supabase.functions.invoke('generate-handwriting', {
-      body: {
-        text,
-        samples: samples || [],
-        userId: userId, // Include user ID for personalized models
-        styleCharacteristics: {
-          slant: style.slant,
-          spacing: style.spacing,
-          strokeWidth: style.strokeWidth,
-          baseline: style.baseline,
-          pressure: style.pressure,
-        },
-      },
+      body: requestBody,
     });
 
     console.log('Edge function response:', { data, error });

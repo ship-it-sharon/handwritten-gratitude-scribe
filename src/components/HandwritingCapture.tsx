@@ -419,39 +419,34 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
   const generatePreviewSample = async () => {
     setIsGeneratingPreview(true);
     try {
-      // Collect all completed samples across all 5 steps
-      const allSamples: string[] = [];
-      
-      // Add mobile images (keyed by sample index)
-      mobileImages.forEach((imageUrl) => {
-        allSamples.push(imageUrl);
-      });
-      
-      // Add uploaded images from all samples
-      uploadedImages.forEach((imageUrl) => {
-        allSamples.push(imageUrl);
-      });
-      
-      // Add any additional samples from current session if needed
-      if (canvasRef.current && hasDrawn) {
-        const canvasData = canvasRef.current.toDataURL();
-        allSamples.push(canvasData);
+      // Check if user has a trained model first
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) {
+        toast.error("Please log in to generate handwriting");
+        return;
       }
-      
-      if (uploadedImage) {
-        allSamples.push(uploadedImage);
-      }
-      
-      console.log('🎨 Collected samples for preview:', allSamples.length);
 
-      // Analyze handwriting style
-      const handwritingStyle = analyzeHandwritingSamples(allSamples);
-      
+      const { data: modelData, error: modelError } = await supabase
+        .from('user_style_models')
+        .select('*')
+        .eq('user_id', userData.user.id)
+        .single();
+
+      if (modelError || !modelData) {
+        toast.error("No trained model found. Please complete the handwriting capture process first.");
+        return;
+      }
+
+      if (modelData.training_status !== 'completed') {
+        toast.error("Your handwriting model is still training. Please wait for it to complete.");
+        return;
+      }
+
       // Generate preview message
       const previewMessage = "Hey there! Here is our best attempt at matching your handwriting. How does this look to you?";
       
-      // Generate handwriting SVG
-      const result = await generateHandwritingStyle(previewMessage, handwritingStyle, allSamples);
+      // Generate handwriting SVG using the trained model
+      const result = await generateHandwritingStyle(previewMessage, null, [], modelData.model_id);
       
       // Handle the new response format
       if (typeof result === 'string') {
