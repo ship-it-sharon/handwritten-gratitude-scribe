@@ -576,6 +576,15 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
                     Collect More Samples
                   </Button>
                   <Button 
+                    variant="outline" 
+                    onClick={() => generatePreviewSample()}
+                    size="lg"
+                    className="flex items-center gap-2"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Generate Another
+                  </Button>
+                  <Button 
                     variant="elegant" 
                     onClick={finishCapture}
                     size="lg"
