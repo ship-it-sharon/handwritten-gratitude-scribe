@@ -640,231 +640,280 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
             </Card>
           </div>
 
-          {/* Method Selection */}
-          <div className="flex justify-center">
-            <Tabs value={captureMethod} onValueChange={(value) => setCaptureMethod(value as 'draw' | 'upload' | 'mobile')}>
-              <TabsList className="grid w-full grid-cols-3 max-w-lg">
-                <TabsTrigger value="draw" className="flex items-center gap-2">
-                  <PenTool className="w-4 h-4" />
-                  Draw
-                </TabsTrigger>
-                <TabsTrigger value="upload" className="flex items-center gap-2">
-                  <Camera className="w-4 h-4" />
-                  Upload
-                </TabsTrigger>
-                <TabsTrigger value="mobile" className="flex items-center gap-2">
-                  <Smartphone className="w-4 h-4" />
-                  Phone
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="draw" className="mt-6">
-                <div className="space-y-4">
-                  <Card className="p-4 bg-paper">
-                    <canvas
-                      ref={canvasRef}
-                      width={800}
-                      height={200}
-                      className="w-full h-48 border border-border rounded cursor-crosshair bg-white"
-                      onMouseDown={startDrawing}
-                      onMouseMove={draw}
-                      onMouseUp={stopDrawing}
-                      onMouseLeave={stopDrawing}
-                      onTouchStart={startDrawing}
-                      onTouchMove={draw}
-                      onTouchEnd={stopDrawing}
-                    />
-                  </Card>
-                  
-                  <div className="flex justify-center gap-4">
-                    <Button variant="outline" onClick={clearCanvas} disabled={!hasDrawn}>
-                      <RotateCcw className="w-4 h-4" />
-                      Clear
-                    </Button>
+          {/* Method Selection or Completed State */}
+          {currentSampleCompleted && (uploadedImages.get(currentSample) || mobileImages.get(currentSample)) ? (
+            <div className="space-y-6">
+              <Card className="p-6 bg-green-50 border-2 border-green-200">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                    <Check className="w-5 h-5 text-white" />
                   </div>
-
-                  <div className="text-center text-sm text-muted-foreground space-y-1">
-                    <p>✍️ Write naturally in your own handwriting style</p>
-                    <p>📱 Use your finger on mobile or a stylus for best results</p>
-                  </div>
+                  <h3 className="text-lg font-semibold text-green-800">Sample Completed</h3>
                 </div>
-              </TabsContent>
+                
+                <div className="bg-white rounded-lg p-4 border border-green-200 mb-6">
+                  <img 
+                    src={uploadedImages.get(currentSample) || mobileImages.get(currentSample)} 
+                    alt={`Handwriting sample ${currentSample + 1}`}
+                    className="max-w-full h-auto rounded shadow-sm mx-auto"
+                    style={{ maxHeight: '300px' }}
+                  />
+                </div>
+                
+                <div className="flex gap-3 justify-center">
+                  <Button variant="outline" onClick={() => {
+                    // Remove from completed and allow re-upload
+                    const newCompleted = new Set(completedSamples);
+                    newCompleted.delete(currentSample);
+                    setCompletedSamples(newCompleted);
+                    
+                    // Clear the stored image
+                    const newUploaded = new Map(uploadedImages);
+                    const newMobile = new Map(mobileImages);
+                    newUploaded.delete(currentSample);
+                    newMobile.delete(currentSample);
+                    setUploadedImages(newUploaded);
+                    setMobileImages(newMobile);
+                    
+                    toast.info("You can now re-upload this sample");
+                  }}>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Re-upload Sample
+                  </Button>
+                  
+                  <Button onClick={nextSample} variant="elegant">
+                    <ArrowRight className="w-4 h-4 mr-2" />
+                    {currentSample < sampleTexts.length - 1 ? "Next Sample" : "Continue"}
+                  </Button>
+                </div>
+              </Card>
+            </div>
+          ) : (
+            <div className="flex justify-center">
+              <Tabs value={captureMethod} onValueChange={(value) => setCaptureMethod(value as 'draw' | 'upload' | 'mobile')}>
+                <TabsList className="grid w-full grid-cols-3 max-w-lg">
+                  <TabsTrigger value="draw" className="flex items-center gap-2">
+                    <PenTool className="w-4 h-4" />
+                    Draw
+                  </TabsTrigger>
+                  <TabsTrigger value="upload" className="flex items-center gap-2">
+                    <Camera className="w-4 h-4" />
+                    Upload
+                  </TabsTrigger>
+                  <TabsTrigger value="mobile" className="flex items-center gap-2">
+                    <Smartphone className="w-4 h-4" />
+                    Phone
+                  </TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="upload" className="mt-6">
-                <div className="space-y-4">
-                  {/* Hide upload section when validation override is showing */}
-                  {!(validationResult && !validationResult.isValid && validationResult.isHandwriting && !validationResult.textMatches && validationResult.extractedText) && (
-                    <Card className="p-8 bg-paper">
-                      {isValidating ? (
-                        <div className="text-center space-y-6 py-8">
-                          <div className="relative">
-                            <Loader2 className="w-16 h-16 mx-auto text-primary animate-spin" />
-                            <Brain className="w-6 h-6 absolute top-5 left-1/2 transform -translate-x-1/2 text-primary-light animate-pulse" />
-                          </div>
-                          <div className="space-y-2">
-                            <h3 className="font-elegant text-xl text-ink">✨ Analyzing your handwriting...</h3>
-                            <div className="space-y-1 text-muted-foreground">
-                              <p className="flex items-center justify-center gap-2">
-                                <Sparkles className="w-4 h-4 animate-pulse" />
-                                Reading your beautiful penmanship
-                              </p>
-                              <p>🔍 Checking if text matches perfectly</p>
-                              <p>🎨 Making sure it's handwritten (not typed!)</p>
+                <TabsContent value="draw" className="mt-6">
+                  <div className="space-y-4">
+                    <Card className="p-4 bg-paper">
+                      <canvas
+                        ref={canvasRef}
+                        width={800}
+                        height={200}
+                        className="w-full h-48 border border-border rounded cursor-crosshair bg-white"
+                        onMouseDown={startDrawing}
+                        onMouseMove={draw}
+                        onMouseUp={stopDrawing}
+                        onMouseLeave={stopDrawing}
+                        onTouchStart={startDrawing}
+                        onTouchMove={draw}
+                        onTouchEnd={stopDrawing}
+                      />
+                    </Card>
+                    
+                    <div className="flex justify-center gap-4">
+                      <Button variant="outline" onClick={clearCanvas} disabled={!hasDrawn}>
+                        <RotateCcw className="w-4 h-4" />
+                        Clear
+                      </Button>
+                    </div>
+
+                    <div className="text-center text-sm text-muted-foreground space-y-1">
+                      <p>✍️ Write naturally in your own handwriting style</p>
+                      <p>📱 Use your finger on mobile or a stylus for best results</p>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="upload" className="mt-6">
+                  <div className="space-y-4">
+                    {/* Hide upload section when validation override is showing */}
+                    {!(validationResult && !validationResult.isValid && validationResult.isHandwriting && !validationResult.textMatches && validationResult.extractedText) && (
+                      <Card className="p-8 bg-paper">
+                        {isValidating ? (
+                          <div className="text-center space-y-6 py-8">
+                            <div className="relative">
+                              <Loader2 className="w-16 h-16 mx-auto text-primary animate-spin" />
+                              <Brain className="w-6 h-6 absolute top-5 left-1/2 transform -translate-x-1/2 text-primary-light animate-pulse" />
+                            </div>
+                            <div className="space-y-2">
+                              <h3 className="font-elegant text-xl text-ink">✨ Analyzing your handwriting...</h3>
+                              <div className="space-y-1 text-muted-foreground">
+                                <p className="flex items-center justify-center gap-2">
+                                  <Sparkles className="w-4 h-4 animate-pulse" />
+                                  Reading your beautiful penmanship
+                                </p>
+                                <p>🔍 Checking if text matches perfectly</p>
+                                <p>🎨 Making sure it's handwritten (not typed!)</p>
+                              </div>
+                            </div>
+                            <div className="text-xs text-muted-foreground italic">
+                              This usually takes just a few seconds...
                             </div>
                           </div>
-                          <div className="text-xs text-muted-foreground italic">
-                            This usually takes just a few seconds...
+                        ) : !uploadedImage ? (
+                          <div 
+                            onClick={isValidating ? undefined : triggerFileUpload}
+                            className={`border-2 border-dashed border-border rounded-lg p-8 text-center transition-colors ${
+                              isValidating 
+                                ? 'cursor-not-allowed opacity-50' 
+                                : 'cursor-pointer hover:border-primary'
+                            }`}
+                          >
+                            <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                            <h3 className="font-medium text-ink mb-2">Upload Handwriting Sample</h3>
+                            <p className="text-sm text-muted-foreground mb-4">
+                              Take a photo of the sample text written in your handwriting
+                            </p>
+                            <Button variant="outline" disabled={isValidating}>
+                              <Image className="w-4 h-4" />
+                              Choose Image
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="text-center space-y-4">
+                            <img 
+                              src={uploadedImage} 
+                              alt="Uploaded handwriting sample"
+                              className="max-h-48 mx-auto rounded-lg border border-border"
+                            />
+                            <Button variant="outline" onClick={removeUploadedImage} disabled={isValidating}>
+                              <RotateCcw className="w-4 h-4" />
+                              Replace Image
+                            </Button>
+                          </div>
+                        )}
+                      </Card>
+                    )}
+
+                    {/* Validation Override UI */}
+                    {validationResult && !validationResult.isValid && validationResult.isHandwriting && !validationResult.textMatches && validationResult.extractedText && (
+                      <Card className="p-6 bg-yellow-50 border-yellow-200 border-2">
+                        <div className="space-y-4">
+                          <div className="text-center">
+                            <h3 className="font-medium text-ink mb-2">🤔 Close Match Detected</h3>
+                            <p className="text-sm text-muted-foreground mb-4">
+                              We detected some handwriting, but the text doesn't match exactly. Here's what we found:
+                            </p>
+                          </div>
+                          
+                          <div className="space-y-3 text-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-white rounded-lg border">
+                              <span className="font-medium text-muted-foreground">Expected:</span>
+                              <span className="font-mono text-ink">"{validationResult.expectedText}"</span>
+                            </div>
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-white rounded-lg border">
+                              <span className="font-medium text-muted-foreground">We found:</span>
+                              <span className="font-mono text-ink">"{validationResult.extractedText}"</span>
+                            </div>
+                          </div>
+                          
+                          <div className="text-center text-sm text-muted-foreground mb-4">
+                            Does this look close enough to accept? Small differences in punctuation or letter recognition are normal.
+                          </div>
+                          
+                          <div className="flex flex-col sm:flex-row gap-3">
+                            <Button 
+                              variant="outline" 
+                              onClick={rejectValidationOverride}
+                              className="flex-1"
+                            >
+                              <RotateCcw className="w-4 h-4" />
+                              Try Different Photo
+                            </Button>
+                            <Button 
+                              variant="elegant" 
+                              onClick={acceptValidationOverride}
+                              className="flex-1"
+                            >
+                              <Check className="w-4 h-4" />
+                              Accept This Sample
+                            </Button>
                           </div>
                         </div>
-                      ) : !uploadedImage ? (
-                        <div 
-                          onClick={isValidating ? undefined : triggerFileUpload}
-                          className={`border-2 border-dashed border-border rounded-lg p-8 text-center transition-colors ${
-                            isValidating 
-                              ? 'cursor-not-allowed opacity-50' 
-                              : 'cursor-pointer hover:border-primary'
-                          }`}
-                        >
-                          <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                          <h3 className="font-medium text-ink mb-2">Upload Handwriting Sample</h3>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            Take a photo of the sample text written in your handwriting
-                          </p>
-                          <Button variant="outline" disabled={isValidating}>
-                            <Image className="w-4 h-4" />
-                            Choose Image
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="text-center space-y-4">
+                      </Card>
+                    )}
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      disabled={isValidating}
+                    />
+
+                    <div className="text-center text-sm text-muted-foreground space-y-1">
+                      <p>📸 Take a clear photo of your handwritten sample</p>
+                      <p>💡 Use good lighting and avoid shadows for best results</p>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="mobile" className="mt-6">
+                  <div className="space-y-4">
+                    {mobileImages.has(currentSample) ? (
+                      <Card className="p-6 space-y-4">
+                        <h3 className="font-elegant text-lg text-ink text-center">Mobile Photo Received</h3>
+                        <div className="text-center">
                           <img 
-                            src={uploadedImage} 
-                            alt="Uploaded handwriting sample"
+                            src={mobileImages.get(currentSample)} 
+                            alt="Mobile handwriting sample"
                             className="max-h-48 mx-auto rounded-lg border border-border"
                           />
-                          <Button variant="outline" onClick={removeUploadedImage} disabled={isValidating}>
-                            <RotateCcw className="w-4 h-4" />
-                            Replace Image
-                          </Button>
                         </div>
-                      )}
-                    </Card>
-                  )}
-
-                  {/* Validation Override UI */}
-                  {validationResult && !validationResult.isValid && validationResult.isHandwriting && !validationResult.textMatches && validationResult.extractedText && (
-                    <Card className="p-6 bg-yellow-50 border-yellow-200 border-2">
-                      <div className="space-y-4">
-                        <div className="text-center">
-                          <h3 className="font-medium text-ink mb-2">🤔 Close Match Detected</h3>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            We detected some handwriting, but the text doesn't match exactly. Here's what we found:
-                          </p>
-                        </div>
-                        
-                        <div className="space-y-3 text-sm">
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-white rounded-lg border">
-                            <span className="font-medium text-muted-foreground">Expected:</span>
-                            <span className="font-mono text-ink">"{validationResult.expectedText}"</span>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            const newMobileImages = new Map(mobileImages);
+                            newMobileImages.delete(currentSample);
+                            setMobileImages(newMobileImages);
+                          }}
+                          className="w-full"
+                        >
+                          Take New Photo
+                        </Button>
+                      </Card>
+                    ) : (
+                      <MobileUploadSidecar
+                        sessionId={`${sessionId}-sample-${currentSample}`}
+                        sampleText={sampleTexts[currentSample]}
+                        onImageReceived={handleMobileImageReceived}
+                        completed={false}
+                      />
+                    )}
+                    {isValidating && (
+                      <Card className="p-6 bg-gradient-primary/5 border-primary/20">
+                        <div className="text-center space-y-4">
+                          <div className="relative">
+                            <Loader2 className="w-12 h-12 mx-auto text-primary animate-spin" />
+                            <Brain className="w-5 h-5 absolute top-3.5 left-1/2 transform -translate-x-1/2 text-primary-light animate-pulse" />
                           </div>
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-white rounded-lg border">
-                            <span className="font-medium text-muted-foreground">We found:</span>
-                            <span className="font-mono text-ink">"{validationResult.extractedText}"</span>
+                          <div className="space-y-1">
+                            <h4 className="font-elegant text-ink">📱 Analyzing your photo...</h4>
+                            <p className="text-sm text-muted-foreground">Making sure your handwriting looks perfect!</p>
                           </div>
                         </div>
-                        
-                        <div className="text-center text-sm text-muted-foreground mb-4">
-                          Does this look close enough to accept? Small differences in punctuation or letter recognition are normal.
-                        </div>
-                        
-                        <div className="flex flex-col sm:flex-row gap-3">
-                          <Button 
-                            variant="outline" 
-                            onClick={rejectValidationOverride}
-                            className="flex-1"
-                          >
-                            <RotateCcw className="w-4 h-4" />
-                            Try Different Photo
-                          </Button>
-                          <Button 
-                            variant="elegant" 
-                            onClick={acceptValidationOverride}
-                            className="flex-1"
-                          >
-                            <Check className="w-4 h-4" />
-                            Accept This Sample
-                          </Button>
-                        </div>
-                      </div>
-                    </Card>
-                  )}
-
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    disabled={isValidating}
-                  />
-
-                  <div className="text-center text-sm text-muted-foreground space-y-1">
-                    <p>📸 Take a clear photo of your handwritten sample</p>
-                    <p>💡 Use good lighting and avoid shadows for best results</p>
+                      </Card>
+                    )}
                   </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="mobile" className="mt-6">
-                <div className="space-y-4">
-                  {mobileImages.has(currentSample) ? (
-                    <Card className="p-6 space-y-4">
-                      <h3 className="font-elegant text-lg text-ink text-center">Mobile Photo Received</h3>
-                      <div className="text-center">
-                        <img 
-                          src={mobileImages.get(currentSample)} 
-                          alt="Mobile handwriting sample"
-                          className="max-h-48 mx-auto rounded-lg border border-border"
-                        />
-                      </div>
-                      <Button 
-                        variant="outline" 
-                        onClick={() => {
-                          const newMobileImages = new Map(mobileImages);
-                          newMobileImages.delete(currentSample);
-                          setMobileImages(newMobileImages);
-                        }}
-                        className="w-full"
-                      >
-                        Take New Photo
-                      </Button>
-                    </Card>
-                  ) : (
-                    <MobileUploadSidecar
-                      sessionId={`${sessionId}-sample-${currentSample}`}
-                      sampleText={sampleTexts[currentSample]}
-                      onImageReceived={handleMobileImageReceived}
-                      completed={false}
-                    />
-                  )}
-                  {isValidating && (
-                    <Card className="p-6 bg-gradient-primary/5 border-primary/20">
-                      <div className="text-center space-y-4">
-                        <div className="relative">
-                          <Loader2 className="w-12 h-12 mx-auto text-primary animate-spin" />
-                          <Brain className="w-5 h-5 absolute top-3.5 left-1/2 transform -translate-x-1/2 text-primary-light animate-pulse" />
-                        </div>
-                        <div className="space-y-1">
-                          <h4 className="font-elegant text-ink">📱 Analyzing your photo...</h4>
-                          <p className="text-sm text-muted-foreground">Making sure your handwriting looks perfect!</p>
-                        </div>
-                      </div>
-                    </Card>
-                  )}
-                </div>
-              </TabsContent>
-            </Tabs>
-          </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex justify-center gap-4">
