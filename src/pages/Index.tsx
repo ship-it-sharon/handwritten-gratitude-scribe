@@ -63,21 +63,44 @@ const Index = () => {
     });
 
     try {
-      // First save to database
-      const { data, error } = await supabase
+      // Check if user already has a style model
+      const { data: existingModel } = await supabase
         .from('user_style_models')
-        .upsert({
-          user_id: user.id,
-          model_id: `user_${user.id}_${Date.now()}`,
-          sample_images: sampleImages,
-          training_status: 'pending'
-        }, {
-          onConflict: 'user_id'
-        })
-        .select()
-        .single();
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      let data, error;
+
+      if (existingModel) {
+        // Update existing model with new samples
+        ({ data, error } = await supabase
+          .from('user_style_models')
+          .update({
+            sample_images: sampleImages,
+            training_status: 'pending',
+            training_started_at: null,
+            training_completed_at: null
+          })
+          .eq('user_id', user.id)
+          .select()
+          .single());
+      } else {
+        // Create new model
+        ({ data, error } = await supabase
+          .from('user_style_models')
+          .insert({
+            user_id: user.id,
+            model_id: `user_${user.id}_${Date.now()}`,
+            sample_images: sampleImages,
+            training_status: 'pending'
+          })
+          .select()
+          .single());
+      }
 
       if (error) {
+        console.error('Database error:', error);
         toast({
           variant: "destructive",
           title: "Error saving samples",
