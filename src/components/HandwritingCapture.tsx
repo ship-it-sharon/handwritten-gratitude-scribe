@@ -388,20 +388,61 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
     }
   };
 
-  const completeSample = () => {
+  const completeSample = async () => {
     // Store the current uploaded image for this sample
     if (uploadedImage) {
       const newUploadedImages = new Map(uploadedImages);
       newUploadedImages.set(currentSample, uploadedImage);
       setUploadedImages(newUploadedImages);
       console.log(`💾 Stored uploaded image for sample ${currentSample}`);
+      
+      // Save to database immediately if user is authenticated
+      if (user) {
+        try {
+          const sampleImages = Array.from(newUploadedImages.values()).filter(img => img !== null);
+          
+          // Check if user already has a style model
+          const { data: existingModel } = await supabase
+            .from('user_style_models')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          if (existingModel) {
+            // Update existing model with new samples
+            await supabase
+              .from('user_style_models')
+              .update({
+                sample_images: sampleImages,
+                training_status: 'pending',
+                training_started_at: null,
+                training_completed_at: null
+              })
+              .eq('user_id', user.id);
+          } else {
+            // Create new model
+            await supabase
+              .from('user_style_models')
+              .insert({
+                user_id: user.id,
+                model_id: `user_${user.id}_${Date.now()}`,
+                sample_images: sampleImages,
+                training_status: 'pending'
+              });
+          }
+          
+          console.log('✅ Sample saved to database');
+        } catch (error) {
+          console.error('Error saving sample:', error);
+        }
+      }
     }
     
     const newCompleted = new Set(completedSamples);
     newCompleted.add(currentSample);
     setCompletedSamples(newCompleted);
     
-    toast.success(`Sample ${currentSample + 1} completed!`);
+    toast.success(`Sample ${currentSample + 1} completed and saved!`);
     
     if (currentSample < sampleTexts.length - 1) {
       setCurrentSample(currentSample + 1);
