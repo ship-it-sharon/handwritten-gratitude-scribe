@@ -398,19 +398,27 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
       
       // Save to database immediately if user is authenticated
       if (user) {
+        console.log('🚀 Starting database save operation...', { 
+          userId: user.id, 
+          currentSample,
+          uploadedImagesSize: newUploadedImages.size 
+        });
+        
         try {
           // Create array with all samples, preserving order and null values for unfinished samples
           const allSampleImages = Array.from({ length: 5 }, (_, index) => {
             return newUploadedImages.get(index) || null;
           });
           
-          console.log('💾 Saving samples to database:', { 
+          console.log('💾 Prepared samples for database:', { 
             currentSample, 
             totalSamples: allSampleImages.filter(img => img !== null).length,
-            allSamples: allSampleImages.map((img, idx) => ({ index: idx, hasImage: !!img }))
+            allSamples: allSampleImages.map((img, idx) => ({ index: idx, hasImage: !!img })),
+            firstSamplePreview: allSampleImages[0] ? allSampleImages[0].substring(0, 50) + '...' : null
           });
           
           // Check if user already has a style model
+          console.log('🔍 Checking for existing model...');
           const { data: existingModel, error: queryError } = await supabase
             .from('user_style_models')
             .select('*')
@@ -418,12 +426,18 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
             .maybeSingle();
 
           if (queryError) {
-            console.error('Error querying existing model:', queryError);
+            console.error('❌ Error querying existing model:', queryError);
             throw queryError;
           }
 
+          console.log('📋 Existing model check result:', { 
+            hasExisting: !!existingModel, 
+            existingId: existingModel?.id 
+          });
+
           let result;
           if (existingModel) {
+            console.log('🔄 Updating existing model...');
             // Update existing model with new samples
             result = await supabase
               .from('user_style_models')
@@ -435,6 +449,7 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
               })
               .eq('user_id', user.id);
           } else {
+            console.log('➕ Creating new model...');
             // Create new model
             result = await supabase
               .from('user_style_models')
@@ -446,15 +461,36 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
               });
           }
           
+          console.log('📤 Database operation result:', result);
+          
           if (result.error) {
-            console.error('Database save error:', result.error);
+            console.error('❌ Database save error:', result.error);
             throw result.error;
           }
           
-          console.log('✅ Sample saved to database successfully');
+          console.log('✅ Sample saved to database successfully!');
+          
+          // Verify the save by querying back
+          const { data: verifyData, error: verifyError } = await supabase
+            .from('user_style_models')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle();
+            
+          console.log('🔍 Verification query result:', { 
+            data: verifyData ? { 
+              id: verifyData.id, 
+              samplesCount: Array.isArray(verifyData.sample_images) ? verifyData.sample_images.length : 0 
+            } : null, 
+            error: verifyError 
+          });
+          
         } catch (error) {
-          console.error('Error saving sample:', error);
+          console.error('❌ Critical error saving sample:', error);
+          toast.error('Failed to save sample to database');
         }
+      } else {
+        console.log('⚠️ No authenticated user, skipping database save');
       }
     }
     
