@@ -331,7 +331,9 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
       const isValid = await validateHandwriting(result);
       if (isValid) {
         setUploadedImage(result);
-        toast.success("Handwriting sample validated successfully!");
+        // CRITICAL: Also call handleImageCapture to save to database
+        await handleImageCapture(result);
+        toast.success("Handwriting sample validated and saved successfully!");
       } else {
         // Only reset if this is not an override case (validation result shows override UI)
         if (!validationResult || !validationResult.isHandwriting || validationResult.textMatches || !validationResult.extractedText) {
@@ -388,110 +390,122 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
     }
   };
 
+  const handleImageCapture = async (imageData: string) => {
+    console.log('🎯 handleImageCapture called with image data length:', imageData.length);
+    
+    // Update the uploaded images map
+    const newUploadedImages = new Map(uploadedImages);
+    newUploadedImages.set(currentSample, imageData);
+    setUploadedImages(newUploadedImages);
+    
+    // Save to database immediately if user is authenticated
+    if (user) {
+      console.log('🚀 Starting database save operation...', { 
+        userId: user.id, 
+        currentSample,
+        uploadedImagesSize: newUploadedImages.size 
+      });
+      
+      try {
+        // Create array with all samples, preserving order and null values for unfinished samples
+        const allSampleImages = Array.from({ length: 5 }, (_, index) => {
+          return newUploadedImages.get(index) || null;
+        });
+        
+        console.log('💾 Prepared samples for database:', { 
+          currentSample, 
+          totalSamples: allSampleImages.filter(img => img !== null).length,
+          allSamples: allSampleImages.map((img, idx) => ({ index: idx, hasImage: !!img })),
+          firstSamplePreview: allSampleImages[0] ? allSampleImages[0].substring(0, 50) + '...' : null
+        });
+        
+        // Check if user already has a style model
+        console.log('🔍 Checking for existing model...');
+        const { data: existingModel, error: queryError } = await supabase
+          .from('user_style_models')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (queryError) {
+          console.error('❌ Error querying existing model:', queryError);
+          throw queryError;
+        }
+
+        console.log('📋 Existing model check result:', { 
+          hasExisting: !!existingModel, 
+          existingId: existingModel?.id 
+        });
+
+        let result;
+        if (existingModel) {
+          console.log('🔄 Updating existing model...');
+          // Update existing model with new samples
+          result = await supabase
+            .from('user_style_models')
+            .update({
+              sample_images: allSampleImages,
+              training_status: 'pending',
+              training_started_at: null,
+              training_completed_at: null
+            })
+            .eq('user_id', user.id);
+        } else {
+          console.log('➕ Creating new model...');
+          // Create new model
+          result = await supabase
+            .from('user_style_models')
+            .insert({
+              user_id: user.id,
+              model_id: `user_${user.id}_${Date.now()}`,
+              sample_images: allSampleImages,
+              training_status: 'pending'
+            });
+        }
+        
+        console.log('📤 Database operation result:', result);
+        
+        if (result.error) {
+          console.error('❌ Database save error:', result.error);
+          throw result.error;
+        }
+        
+        console.log('✅ Sample saved to database successfully!');
+        
+        // Verify the save by querying back
+        const { data: verifyData, error: verifyError } = await supabase
+          .from('user_style_models')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+          
+        console.log('🔍 Verification query result:', { 
+          data: verifyData ? { 
+            id: verifyData.id, 
+            samplesCount: Array.isArray(verifyData.sample_images) ? verifyData.sample_images.length : 0 
+          } : null, 
+          error: verifyError 
+        });
+        
+      } catch (error) {
+        console.error('❌ Critical error saving sample:', error);
+        toast.error('Failed to save sample to database');
+      }
+    } else {
+      console.log('⚠️ No authenticated user, skipping database save');
+    }
+  };
+
   const completeSample = async () => {
     // Store the current uploaded image for this sample
     if (uploadedImage) {
-      const newUploadedImages = new Map(uploadedImages);
-      newUploadedImages.set(currentSample, uploadedImage);
-      setUploadedImages(newUploadedImages);
-      console.log(`💾 Stored uploaded image for sample ${currentSample}`);
-      
-      // Save to database immediately if user is authenticated
-      if (user) {
-        console.log('🚀 Starting database save operation...', { 
-          userId: user.id, 
-          currentSample,
-          uploadedImagesSize: newUploadedImages.size 
-        });
-        
-        try {
-          // Create array with all samples, preserving order and null values for unfinished samples
-          const allSampleImages = Array.from({ length: 5 }, (_, index) => {
-            return newUploadedImages.get(index) || null;
-          });
-          
-          console.log('💾 Prepared samples for database:', { 
-            currentSample, 
-            totalSamples: allSampleImages.filter(img => img !== null).length,
-            allSamples: allSampleImages.map((img, idx) => ({ index: idx, hasImage: !!img })),
-            firstSamplePreview: allSampleImages[0] ? allSampleImages[0].substring(0, 50) + '...' : null
-          });
-          
-          // Check if user already has a style model
-          console.log('🔍 Checking for existing model...');
-          const { data: existingModel, error: queryError } = await supabase
-            .from('user_style_models')
-            .select('*')
-            .eq('user_id', user.id)
-            .maybeSingle();
-
-          if (queryError) {
-            console.error('❌ Error querying existing model:', queryError);
-            throw queryError;
-          }
-
-          console.log('📋 Existing model check result:', { 
-            hasExisting: !!existingModel, 
-            existingId: existingModel?.id 
-          });
-
-          let result;
-          if (existingModel) {
-            console.log('🔄 Updating existing model...');
-            // Update existing model with new samples
-            result = await supabase
-              .from('user_style_models')
-              .update({
-                sample_images: allSampleImages,
-                training_status: 'pending',
-                training_started_at: null,
-                training_completed_at: null
-              })
-              .eq('user_id', user.id);
-          } else {
-            console.log('➕ Creating new model...');
-            // Create new model
-            result = await supabase
-              .from('user_style_models')
-              .insert({
-                user_id: user.id,
-                model_id: `user_${user.id}_${Date.now()}`,
-                sample_images: allSampleImages,
-                training_status: 'pending'
-              });
-          }
-          
-          console.log('📤 Database operation result:', result);
-          
-          if (result.error) {
-            console.error('❌ Database save error:', result.error);
-            throw result.error;
-          }
-          
-          console.log('✅ Sample saved to database successfully!');
-          
-          // Verify the save by querying back
-          const { data: verifyData, error: verifyError } = await supabase
-            .from('user_style_models')
-            .select('*')
-            .eq('user_id', user.id)
-            .maybeSingle();
-            
-          console.log('🔍 Verification query result:', { 
-            data: verifyData ? { 
-              id: verifyData.id, 
-              samplesCount: Array.isArray(verifyData.sample_images) ? verifyData.sample_images.length : 0 
-            } : null, 
-            error: verifyError 
-          });
-          
-        } catch (error) {
-          console.error('❌ Critical error saving sample:', error);
-          toast.error('Failed to save sample to database');
-        }
-      } else {
-        console.log('⚠️ No authenticated user, skipping database save');
-      }
+      console.log(`💾 Completing sample ${currentSample} with uploaded image`);
+      // Call the centralized save function
+      await handleImageCapture(uploadedImage);
+    } else if (hasDrawn && canvasRef.current) {
+      console.log(`💾 Completing sample ${currentSample} with drawn image`);
+      const canvasData = canvasRef.current.toDataURL();
+      await handleImageCapture(canvasData);
     }
     
     const newCompleted = new Set(completedSamples);
