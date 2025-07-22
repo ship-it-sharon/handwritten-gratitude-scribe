@@ -399,21 +399,36 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
       // Save to database immediately if user is authenticated
       if (user) {
         try {
-          const sampleImages = Array.from(newUploadedImages.values()).filter(img => img !== null);
+          // Create array with all samples, preserving order and null values for unfinished samples
+          const allSampleImages = Array.from({ length: 5 }, (_, index) => {
+            return newUploadedImages.get(index) || null;
+          });
+          
+          console.log('💾 Saving samples to database:', { 
+            currentSample, 
+            totalSamples: allSampleImages.filter(img => img !== null).length,
+            allSamples: allSampleImages.map((img, idx) => ({ index: idx, hasImage: !!img }))
+          });
           
           // Check if user already has a style model
-          const { data: existingModel } = await supabase
+          const { data: existingModel, error: queryError } = await supabase
             .from('user_style_models')
             .select('*')
             .eq('user_id', user.id)
             .maybeSingle();
 
+          if (queryError) {
+            console.error('Error querying existing model:', queryError);
+            throw queryError;
+          }
+
+          let result;
           if (existingModel) {
             // Update existing model with new samples
-            await supabase
+            result = await supabase
               .from('user_style_models')
               .update({
-                sample_images: sampleImages,
+                sample_images: allSampleImages,
                 training_status: 'pending',
                 training_started_at: null,
                 training_completed_at: null
@@ -421,17 +436,22 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
               .eq('user_id', user.id);
           } else {
             // Create new model
-            await supabase
+            result = await supabase
               .from('user_style_models')
               .insert({
                 user_id: user.id,
                 model_id: `user_${user.id}_${Date.now()}`,
-                sample_images: sampleImages,
+                sample_images: allSampleImages,
                 training_status: 'pending'
               });
           }
           
-          console.log('✅ Sample saved to database');
+          if (result.error) {
+            console.error('Database save error:', result.error);
+            throw result.error;
+          }
+          
+          console.log('✅ Sample saved to database successfully');
         } catch (error) {
           console.error('Error saving sample:', error);
         }
