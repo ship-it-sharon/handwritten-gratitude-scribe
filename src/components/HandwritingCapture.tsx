@@ -300,8 +300,14 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('📁 handleFileUpload called');
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      console.log('❌ No file selected');
+      return;
+    }
+
+    console.log('📁 File selected:', { name: file.name, size: file.size, type: file.type });
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
@@ -323,18 +329,26 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
       return;
     }
 
+    console.log('📖 Starting FileReader...');
     const reader = new FileReader();
     reader.onload = async (e) => {
+      console.log('📖 FileReader onload triggered');
       const result = e.target?.result as string;
+      console.log('📖 File read complete, data length:', result?.length);
       
       // Validate the handwriting
+      console.log('🔍 Starting handwriting validation...');
       const isValid = await validateHandwriting(result);
+      console.log('🔍 Validation result:', isValid);
+      
       if (isValid) {
+        console.log('✅ Validation passed, setting uploaded image and calling handleImageCapture...');
         setUploadedImage(result);
         // CRITICAL: Also call handleImageCapture to save to database
         await handleImageCapture(result);
         toast.success("Handwriting sample validated and saved successfully!");
       } else {
+        console.log('❌ Validation failed');
         // Only reset if this is not an override case (validation result shows override UI)
         if (!validationResult || !validationResult.isHandwriting || validationResult.textMatches || !validationResult.extractedText) {
           // Reset file input to allow selecting the same file again after validation failure
