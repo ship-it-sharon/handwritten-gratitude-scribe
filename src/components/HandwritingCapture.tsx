@@ -84,7 +84,7 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
           console.log('📊 Database query result:', { data, error, userId: user.id });
 
@@ -471,7 +471,7 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
         .from('user_style_models')
         .select('*')
         .eq('user_id', userData.user.id)
-        .single();
+        .maybeSingle();
 
       if (modelError || !modelData) {
         toast.error("No trained model found. Please complete the handwriting capture process first.");
