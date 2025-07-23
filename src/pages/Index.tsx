@@ -6,6 +6,7 @@ import { PenTool, Heart, Send, Sparkles, ChevronRight, LogOut, RotateCcw } from 
 import { HandwritingCapture } from "@/components/HandwritingCapture";
 import { NoteGenerator } from "@/components/NoteGenerator";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
+import { TrainingProgressDisplay } from "@/components/TrainingProgressDisplay";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -14,7 +15,7 @@ const Index = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [currentStep, setCurrentStep] = useState<'welcome' | 'capture' | 'preview-samples' | 'generate' | 'preview'>('welcome');
+  const [currentStep, setCurrentStep] = useState<'welcome' | 'capture' | 'preview-samples' | 'training' | 'generate' | 'preview'>('welcome');
   const [handwritingSamples, setHandwritingSamples] = useState<(string | HTMLCanvasElement)[]>([]);
   const [userStyleModel, setUserStyleModel] = useState<any>(null);
 
@@ -74,9 +75,14 @@ const Index = () => {
         return;
       }
 
-      const validSamples = Array.isArray(modelData.sample_images) 
-        ? modelData.sample_images.filter((img: any) => img && typeof img === 'string') 
-        : [];
+      // Extract valid samples from database (handle both array and object formats)
+      let validSamples: string[] = [];
+      if (Array.isArray(modelData.sample_images)) {
+        validSamples = modelData.sample_images.filter((img: any) => img && typeof img === 'string') as string[];
+      } else if (typeof modelData.sample_images === 'object' && modelData.sample_images !== null) {
+        // If stored as object, get all values and filter for strings
+        validSamples = Object.values(modelData.sample_images).filter((img: any) => img && typeof img === 'string') as string[];
+      }
       
       if (validSamples.length === 0) {
         console.error('No valid samples found for training');
@@ -169,15 +175,24 @@ const Index = () => {
             // Samples are already saved individually during capture
             // Just start training with all available samples
             startTraining();
-            setCurrentStep('preview-samples');
+            setCurrentStep('training');
           }} 
           user={user}
         />;
       case 'preview-samples':
         return <SamplePreviewScreen 
           samples={handwritingSamples} 
-          onContinue={() => setCurrentStep('generate')} 
+          onContinue={() => {
+            startTraining();
+            setCurrentStep('training');
+          }} 
           onRetake={() => setCurrentStep('capture')} 
+        />;
+      case 'training':
+        return <TrainingProgressDisplay 
+          userId={user.id}
+          onTrainingComplete={() => setCurrentStep('generate')} 
+          onCancel={() => setCurrentStep('preview-samples')} 
         />;
       case 'generate':
         return <NoteGenerator onNext={() => setCurrentStep('preview')} handwritingSamples={handwritingSamples} />;

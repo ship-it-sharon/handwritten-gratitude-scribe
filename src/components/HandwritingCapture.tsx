@@ -88,18 +88,30 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
 
           console.log('📊 Database query result:', { data, error, userId: user.id });
 
-          if (data?.sample_images && !error && Array.isArray(data.sample_images)) {
-            console.log('✅ Found saved samples:', data.sample_images.length);
+          if (data?.sample_images && !error) {
+            console.log('✅ Found saved samples:', data.sample_images);
             const newUploadedImages = new Map<number, string>();
             const newCompleted = new Set<number>();
             
-            // Map saved samples to sample indices
-            data.sample_images.forEach((imageUrl: string, index: number) => {
-              if (index < sampleTexts.length && typeof imageUrl === 'string') {
-                newUploadedImages.set(index, imageUrl);
-                newCompleted.add(index);
-              }
-            });
+            // Handle both array and object formats for saved samples
+            if (Array.isArray(data.sample_images)) {
+              // Legacy array format
+              data.sample_images.forEach((imageUrl: any, index: number) => {
+                if (index < sampleTexts.length && typeof imageUrl === 'string') {
+                  newUploadedImages.set(index, imageUrl);
+                  newCompleted.add(index);
+                }
+              });
+            } else if (typeof data.sample_images === 'object' && data.sample_images !== null) {
+              // New object format
+              Object.entries(data.sample_images).forEach(([indexStr, imageUrl]) => {
+                const index = parseInt(indexStr);
+                if (index < sampleTexts.length && typeof imageUrl === 'string') {
+                  newUploadedImages.set(index, imageUrl);
+                  newCompleted.add(index);
+                }
+              });
+            }
             
             setUploadedImages(newUploadedImages);
             setCompletedSamples(newCompleted);
@@ -433,14 +445,30 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
           throw queryError;
         }
 
-        // Create or update the samples array with only valid samples (no nulls)
-        let currentSamples: string[] = [];
-        if (existingModel?.sample_images && Array.isArray(existingModel.sample_images)) {
-          currentSamples = existingModel.sample_images.filter((img: any) => img && typeof img === 'string') as string[];
+        // Get current samples from database and merge with new one
+        let currentSamples: { [key: number]: string } = {};
+        if (existingModel?.sample_images && typeof existingModel.sample_images === 'object') {
+          // Handle both array and object formats for backwards compatibility
+          if (Array.isArray(existingModel.sample_images)) {
+            // Convert array to object, filtering out nulls
+            existingModel.sample_images.forEach((img: any, index: number) => {
+              if (img && typeof img === 'string') {
+                currentSamples[index] = img;
+              }
+            });
+          } else {
+            // Already an object - convert keys to numbers and ensure values are strings
+            Object.entries(existingModel.sample_images).forEach(([key, value]) => {
+              const numKey = parseInt(key);
+              if (!isNaN(numKey) && value && typeof value === 'string') {
+                currentSamples[numKey] = value;
+              }
+            });
+          }
         }
 
-        // Add the new sample
-        const allValidSamples = Array.from(newUploadedImages.values());
+        // Add the new sample at the correct index
+        currentSamples[currentSample] = imageData;
         
         let result;
         if (existingModel) {
@@ -448,7 +476,7 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
           result = await supabase
             .from('user_style_models')
             .update({
-              sample_images: allValidSamples,
+              sample_images: currentSamples,
               training_status: 'pending',
               training_started_at: null,
               training_completed_at: null
@@ -461,7 +489,7 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
             .insert({
               user_id: user.id,
               model_id: `user_${user.id}_${Date.now()}`,
-              sample_images: allValidSamples,
+              sample_images: currentSamples,
               training_status: 'pending'
             });
         }
