@@ -30,7 +30,7 @@ export const generateHandwritingStyle = async (
   text: string, 
   style: HandwritingStyle | null, 
   samples?: string[],
-  modelId?: string
+  userId?: string
 ): Promise<string | { status: string; [key: string]: any }> => {
   try {
     const { supabase } = await import('@/integrations/supabase/client');
@@ -38,7 +38,7 @@ export const generateHandwritingStyle = async (
     console.log('🎨 generateHandwritingStyle called with:', { 
       textLength: text.length, 
       samplesCount: samples?.length || 0,
-      hasModelId: !!modelId,
+      hasUserId: !!userId,
       hasStyle: !!style 
     });
 
@@ -47,10 +47,10 @@ export const generateHandwritingStyle = async (
       samples: samples || [],
     };
 
-    // If we have a model ID, use it for trained model generation
-    if (modelId) {
-      console.log('🎯 Using trained model:', modelId);
-      requestBody.model_id = modelId;
+    // If we have a user ID, try to use their extracted style embeddings
+    if (userId) {
+      console.log('🎯 Using user embeddings for generation:', userId);
+      requestBody.user_id = userId;
     } else if (style) {
       // Otherwise use style characteristics for initial preview
       console.log('🎨 Using style characteristics:', style);
@@ -63,7 +63,7 @@ export const generateHandwritingStyle = async (
       };
     }
 
-    console.log('📤 Sending request to edge function:', { 
+    console.log('📤 Sending request to generate-handwriting edge function:', { 
       ...requestBody, 
       samples: `${requestBody.samples.length} samples` 
     });
@@ -72,17 +72,37 @@ export const generateHandwritingStyle = async (
       body: requestBody,
     });
 
-    console.log('Edge function response:', { data, error });
-    console.log('Received handwritingSvg length:', data?.handwritingSvg?.length || 'undefined');
+    console.log('📥 Generate handwriting response:', { data, error });
 
     if (error) {
+      console.error('❌ Generation error:', error);
       throw new Error(`Failed to generate handwriting: ${error.message}`);
     }
 
-    // Return the full response for training status handling
-    return data.handwritingSvg || data;
+    // Handle different response types from the new backend
+    if (data) {
+      if (typeof data === 'string') {
+        // Direct SVG response
+        console.log('✅ Received SVG response, length:', data.length);
+        return data;
+      } else if (data.handwritingSvg) {
+        // SVG in response object
+        console.log('✅ Received SVG in response object, length:', data.handwritingSvg.length);
+        return data.handwritingSvg;
+      } else if (data.status) {
+        // Status response (e.g., embeddings still processing)
+        console.log('📊 Received status response:', data);
+        return data;
+      } else {
+        // Unknown response format
+        console.warn('⚠️ Unknown response format:', data);
+        return data;
+      }
+    }
+
+    throw new Error('No response data received from generation service');
   } catch (error) {
-    console.error('Error generating handwriting:', error);
+    console.error('❌ Error generating handwriting:', error);
     throw error;
   }
 };

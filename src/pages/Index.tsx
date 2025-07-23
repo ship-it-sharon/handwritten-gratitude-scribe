@@ -15,7 +15,7 @@ const Index = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [currentStep, setCurrentStep] = useState<'welcome' | 'capture' | 'preview-samples' | 'training' | 'generate' | 'preview'>('welcome');
+  const [currentStep, setCurrentStep] = useState<'welcome' | 'capture' | 'preview-samples' | 'processing' | 'generate' | 'preview'>('welcome');
   const [handwritingSamples, setHandwritingSamples] = useState<(string | HTMLCanvasElement)[]>([]);
   const [userStyleModel, setUserStyleModel] = useState<any>(null);
 
@@ -52,10 +52,10 @@ const Index = () => {
     }
   };
 
-  const startTraining = async () => {
-    console.log('🔥 startTraining called, user:', user?.id);
+  const startEmbeddingExtraction = async () => {
+    console.log('🔥 startEmbeddingExtraction called, user:', user?.id);
     if (!user) {
-      console.log('❌ No user found, aborting training');
+      console.log('❌ No user found, aborting embedding extraction');
       return;
     }
 
@@ -73,7 +73,7 @@ const Index = () => {
       console.log('📦 Database query result:', { modelData, modelError });
 
       if (modelError || !modelData?.sample_images) {
-        console.error('No samples found for training:', modelError);
+        console.error('No samples found for embedding extraction:', modelError);
         toast({
           variant: "destructive",
           title: "No samples found",
@@ -92,7 +92,7 @@ const Index = () => {
       }
       
       if (validSamples.length === 0) {
-        console.error('No valid samples found for training');
+        console.error('No valid samples found for embedding extraction');
         toast({
           variant: "destructive",
           title: "No valid samples",
@@ -101,33 +101,33 @@ const Index = () => {
         return;
       }
 
-      // Start training process
-      console.log('🚀 Starting training process with samples:', validSamples.length);
-      const { data: trainingData, error: trainingError } = await supabase.functions.invoke('train-handwriting', {
+      // Start embedding extraction process
+      console.log('🚀 Starting embedding extraction process with samples:', validSamples.length);
+      const { data: extractionData, error: extractionError } = await supabase.functions.invoke('train-handwriting', {
         body: {
-          samples: validSamples.slice(0, 5), // Limit to 5 samples for training
+          samples: validSamples.slice(0, 5), // Limit to 5 samples for processing
           user_id: user.id
         }
       });
 
-      console.log('🚀 Training function response:', { trainingData, trainingError });
+      console.log('🚀 Embedding extraction function response:', { extractionData, extractionError });
 
-      if (trainingError) {
-        console.error('Training failed to start:', trainingError);
+      if (extractionError) {
+        console.error('Embedding extraction failed to start:', extractionError);
         toast({
           variant: "destructive",
-          title: "Training failed to start",
-          description: trainingError.message,
+          title: "Processing failed to start",
+          description: extractionError.message,
         });
       } else {
-        console.log('✅ Training started successfully:', trainingData);
+        console.log('✅ Embedding extraction started successfully:', extractionData);
         toast({
-          title: "Training started!",
-          description: "Your handwriting model is being trained. This will take 10-15 minutes.",
+          title: "Processing started!",
+          description: "Your handwriting style is being analyzed. This will take a few minutes.",
         });
       }
     } catch (error: any) {
-      console.error('Error starting training:', error);
+      console.error('Error starting embedding extraction:', error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -188,12 +188,12 @@ const Index = () => {
         return <SamplePreviewScreen 
           samples={handwritingSamples} 
           onContinue={() => {
-            startTraining();
-            setCurrentStep('training');
+            startEmbeddingExtraction();
+            setCurrentStep('processing');
           }} 
           onRetake={() => setCurrentStep('capture')} 
         />;
-      case 'training':
+      case 'processing':
         return <TrainingProgressDisplay 
           userId={user.id}
           onTrainingComplete={() => setCurrentStep('generate')} 
@@ -286,8 +286,8 @@ const SamplePreviewScreen = ({
               Retake Samples
             </Button>
             <Button variant="elegant" size="lg" onClick={onContinue}>
-              Continue to Note Generation
-              <ChevronRight className="w-4 h-4" />
+              <Sparkles className="w-4 h-4" />
+              Analyze My Handwriting
             </Button>
           </div>
         </div>

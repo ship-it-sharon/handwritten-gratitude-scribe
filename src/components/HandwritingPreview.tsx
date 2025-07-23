@@ -178,12 +178,12 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
               </div>
               
               <div className="space-y-2">
-                <h4 className="font-medium text-ink text-lg">Learning Your Handwriting Style</h4>
+                <h4 className="font-medium text-ink text-lg">Analyzing Your Handwriting Style</h4>
                 <p className="text-muted-foreground">
-                  Our AI is analyzing your samples to create a personalized handwriting model
+                  Our AI is extracting style characteristics from your samples to create personalized handwriting
                 </p>
                 <div className="text-sm text-primary font-medium">
-                  Estimated time: {trainingStatus.estimated_time}
+                  Estimated time: {trainingStatus.estimated_time || "2-5 minutes"}
                 </div>
                 {trainingStatus.note && (
                   <p className="text-xs text-muted-foreground italic mt-3">
