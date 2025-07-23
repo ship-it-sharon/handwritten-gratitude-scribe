@@ -159,8 +159,14 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
     // Call Modal API for actual training
     console.log('Making request to Modal training API...');
     
-    const modalApiUrl = 'https://ship-it-sharon--one-dm-handwriting-fastapi-app.modal.run/train_style';
-    console.log('Modal API URL:', modalApiUrl);
+    // Check if Modal API URL is configured
+    const modalApiUrl = Deno.env.get('MODAL_API_URL');
+    if (!modalApiUrl) {
+      throw new Error('MODAL_API_URL environment variable is not configured');
+    }
+    
+    const trainEndpoint = `${modalApiUrl}/train_style`;
+    console.log('Modal API URL:', trainEndpoint);
     
     const requestBody = {
       samples: samples.slice(0, 5), // Limit to 5 samples for training
@@ -173,7 +179,7 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
       samples: `${requestBody.samples.length} samples`
     });
 
-    const response = await fetch(modalApiUrl, {
+    const response = await fetch(trainEndpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
