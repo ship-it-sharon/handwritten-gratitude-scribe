@@ -31,15 +31,19 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
 
   const analyzeStyle = async () => {
     setIsAnalyzing(true);
+    console.log('🔍 Starting handwriting analysis with samples:', samples.length);
     try {
       const style = analyzeHandwritingSamples(samples);
+      console.log('📊 Analyzed style:', style);
       setHandwritingStyle(style);
       onStyleChange?.(style);
       
       // Auto-generate preview with analyzed style
+      console.log('🎨 Auto-generating preview with analyzed style...');
       await generatePreview(style);
+      console.log('✅ Preview generation completed');
     } catch (error) {
-      console.error('Error analyzing handwriting:', error);
+      console.error('❌ Error analyzing handwriting:', error);
     } finally {
       setIsAnalyzing(false);
     }
