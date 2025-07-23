@@ -53,9 +53,14 @@ const Index = () => {
   };
 
   const startTraining = async () => {
-    if (!user) return;
+    console.log('🔥 startTraining called, user:', user?.id);
+    if (!user) {
+      console.log('❌ No user found, aborting training');
+      return;
+    }
 
     try {
+      console.log('📦 Getting latest samples from database...');
       // Get the latest samples from database
       const { data: modelData, error: modelError } = await supabase
         .from('user_style_models')
@@ -64,6 +69,8 @@ const Index = () => {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      console.log('📦 Database query result:', { modelData, modelError });
 
       if (modelError || !modelData?.sample_images) {
         console.error('No samples found for training:', modelError);
