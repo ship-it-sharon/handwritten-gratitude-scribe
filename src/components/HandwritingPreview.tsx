@@ -99,7 +99,27 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
         }
       }
       
-      console.log(`Converting ${samples.length} samples to base64, got ${base64Samples.length} strings`);
+      console.log(`🔄 Converting ${samples.length} samples to base64, got ${base64Samples.length} strings`);
+      
+      // If we have a user ID, first check if we need to train a model
+      if (userId && base64Samples.length > 0) {
+        console.log('🚀 Checking training status and triggering training if needed...');
+        
+        const { data: trainingData, error: trainingError } = await supabase.functions.invoke('train-handwriting', {
+          body: {
+            samples: base64Samples.slice(0, 5),
+            user_id: userId
+          }
+        });
+        
+        console.log('🚀 Training function response:', { trainingData, trainingError });
+        
+        if (trainingError) {
+          console.error('❌ Training error:', trainingError);
+        }
+      }
+      
+      console.log('📤 Calling generate-handwriting with text:', text.substring(0, 50) + '...');
       
       const response = await generateHandwritingStyle(
         text, 
@@ -110,29 +130,31 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
       
       // Handle different response types
       if (!response) {
+        console.warn('⚠️ No response from generateHandwritingStyle');
         return;
       }
       
-      console.log('Generate response:', response, 'Type:', typeof response);
+      console.log('📥 Generate response:', response, 'Type:', typeof response);
       
       if (typeof response === 'object' && 'status' in response) {
         const statusResponse = response as any;
         if (statusResponse.status === 'training') {
           // Show training status instead of SVG
+          console.log('📊 Model still training, showing status:', statusResponse);
           setGeneratedSvg(''); // Clear any existing SVG
           setTrainingStatus(statusResponse);
         }
       } else if (typeof response === 'string') {
         // Regular SVG response
-        console.log('Setting generatedSvg:', response.substring(0, 100) + '...');
+        console.log('✅ Received SVG response, length:', response.length);
         setGeneratedSvg(response);
         setTrainingStatus(null);
         setShowGenerateAnother(true);
       } else {
-        console.warn('Unexpected response format:', response);
+        console.warn('⚠️ Unexpected response format:', response);
       }
     } catch (error) {
-      console.error('Error generating handwriting preview:', error);
+      console.error('❌ Error generating handwriting preview:', error);
     } finally {
       setIsGenerating(false);
     }
