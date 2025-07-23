@@ -120,6 +120,12 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
       }
       
       console.log('📤 Calling generate-handwriting with text:', text.substring(0, 50) + '...');
+      console.log('📤 About to call generateHandwritingStyle with:', {
+        textLength: text.length,
+        styleExists: !!(style || handwritingStyle),
+        samplesCount: base64Samples.length,
+        userId: userId || 'none'
+      });
       
       const response = await generateHandwritingStyle(
         text, 
