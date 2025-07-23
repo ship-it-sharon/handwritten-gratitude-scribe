@@ -293,6 +293,9 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
   const acceptValidationOverride = async () => {
     if (validationResult?.originalImageData) {
       console.log('🔄 User accepted validation override - saving sample anyway');
+      console.log('🔄 Current sample index:', currentSample);
+      console.log('🔄 Image data length:', validationResult.originalImageData.length);
+      
       // Use the stored image data directly
       setUploadedImage(validationResult.originalImageData);
       setValidationResult(null);
@@ -304,6 +307,8 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
       const newCompleted = new Set(completedSamples);
       newCompleted.add(currentSample);
       setCompletedSamples(newCompleted);
+      
+      console.log('✅ Sample accepted and saved with override!');
       toast.success("Handwriting sample accepted and saved!");
     }
   };
@@ -473,7 +478,10 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
         }
 
         // Add the new sample at the correct index
+        console.log('📝 Adding sample at index:', currentSample);
+        console.log('📝 Current samples before adding:', Object.keys(currentSamples));
         currentSamples[currentSample] = imageData;
+        console.log('📝 Current samples after adding:', Object.keys(currentSamples));
         
         let result;
         if (existingModel) {
@@ -517,8 +525,9 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
           
         console.log('🔍 Verification query result:', { 
           data: verifyData ? { 
-            id: verifyData.id, 
-            samplesCount: Array.isArray(verifyData.sample_images) ? verifyData.sample_images.length : 0 
+            id: verifyData.id,
+            sampleImages: verifyData.sample_images,
+            samplesCount: verifyData.sample_images ? Object.keys(verifyData.sample_images).length : 0
           } : null, 
           error: verifyError 
         });
