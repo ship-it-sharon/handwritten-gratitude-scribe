@@ -311,10 +311,11 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
         print(f"DiffusionPen path: {diffusionpen_path}")
         print(f"Device: {device}")
         
-        # Create temporary directories for training
-        with tempfile.TemporaryDirectory() as temp_dir:
-            style_dir = os.path.join(temp_dir, "user_style_samples")
-            model_output_dir = os.path.join(temp_dir, "trained_model")
+        # Create persistent directories for style storage (NOT temporary)
+        style_dir = "/tmp/user_style_samples"
+        model_output_dir = "/tmp/persistent_styles"  # Match generation lookup path
+        os.makedirs(style_dir, exist_ok=True)
+        os.makedirs(model_output_dir, exist_ok=True)
             os.makedirs(style_dir, exist_ok=True)
             os.makedirs(model_output_dir, exist_ok=True)
             
@@ -484,11 +485,14 @@ async def generate_with_trained_model(text: str, model_id: str, model: dict, sty
         # Try to load the user's style data
         style_data = None
         
-        # Look for the style embedding file in temporary storage or persistent storage
+        # Look for the style embedding file in possible storage locations
+        # First check if model_id contains the actual file path (new approach)
         possible_locations = [
-            f"/tmp/style_out/{model_id}.json",
-            f"/tmp/models/{model_id}.json",
-            f"/root/models/{model_id}.json"
+            f"/tmp/persistent_styles/{model_id}.json",  # Use persistent location
+            f"/tmp/style_models/{model_id}.json",
+            f"/root/style_models/{model_id}.json", 
+            f"/tmp/{model_id}.json",  # Fallback location
+            f"/tmp/style_out/{model_id}.json",  # Legacy location
         ]
         
         for style_file_path in possible_locations:
