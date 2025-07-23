@@ -159,7 +159,7 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
     // Call Modal API for actual training
     console.log('Making request to Modal training API...');
     
-    const modalApiUrl = 'https://ship-it-sharon--diffusionpen-handwriting-training-fastapi-app.modal.run/train_style';
+    const modalApiUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/train_style';
     console.log('Modal API URL:', modalApiUrl);
     
     const requestBody = {
