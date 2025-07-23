@@ -356,101 +356,101 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
                     print(f"Sample data type: {type(sample_data)}")
                     print(f"Sample data preview: {str(sample_data)[:100]}...")
                     continue
+        
+        if successful_samples == 0:
+            print("ERROR: No valid samples processed - cannot train model")
+            raise Exception("No valid training samples available")
             
-            if successful_samples == 0:
-                print("ERROR: No valid samples processed - cannot train model")
-                raise Exception("No valid training samples available")
-                
-            print(f"Successfully processed {successful_samples} samples for training")
+        print(f"Successfully processed {successful_samples} samples for training")
+        
+        # Extract style embeddings from user samples using pre-trained DiffusionPen
+        print("=== EXTRACTING STYLE EMBEDDINGS FROM USER SAMPLES ===")
+        
+        try:
+            # Import required modules for style extraction
+            import torch
+            import torchvision.transforms as transforms
+            from PIL import Image
+            import numpy as np
             
-            # Extract style embeddings from user samples using pre-trained DiffusionPen
-            print("=== EXTRACTING STYLE EMBEDDINGS FROM USER SAMPLES ===")
+            print("Loading DiffusionPen components for style extraction...")
             
-            try:
-                # Import required modules for style extraction
-                import torch
-                import torchvision.transforms as transforms
-                from PIL import Image
-                import numpy as np
+            # Create transforms for preprocessing user samples (DiffusionPen standard)
+            transform = transforms.Compose([
+                transforms.Resize((64, 64)),  # DiffusionPen standard size
+                transforms.Grayscale(num_output_channels=1),  # Convert to grayscale
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.5], std=[0.5])  # Normalize to [-1, 1]
+            ])
+            
+            # Process each user sample to extract style features
+            processed_samples = []
+            for i in range(successful_samples):
+                sample_path = os.path.join(style_dir, f"user_sample_{i:03d}.png")
                 
-                print("Loading DiffusionPen components for style extraction...")
+                # Load and preprocess the image
+                img = Image.open(sample_path).convert('RGB')
+                img_tensor = transform(img).unsqueeze(0)  # Add batch dimension
+                processed_samples.append(img_tensor)
                 
-                # Create transforms for preprocessing user samples (DiffusionPen standard)
-                transform = transforms.Compose([
-                    transforms.Resize((64, 64)),  # DiffusionPen standard size
-                    transforms.Grayscale(num_output_channels=1),  # Convert to grayscale
-                    transforms.ToTensor(),
-                    transforms.Normalize(mean=[0.5], std=[0.5])  # Normalize to [-1, 1]
-                ])
-                
-                # Process each user sample to extract style features
-                processed_samples = []
-                for i in range(successful_samples):
-                    sample_path = os.path.join(style_dir, f"user_sample_{i:03d}.png")
-                    
-                    # Load and preprocess the image
-                    img = Image.open(sample_path).convert('RGB')
-                    img_tensor = transform(img).unsqueeze(0)  # Add batch dimension
-                    processed_samples.append(img_tensor)
-                    
-                    print(f"Preprocessed sample {i+1}/{successful_samples}: {img_tensor.shape}")
-                
-                # Stack all samples into a batch
-                samples_batch = torch.cat(processed_samples, dim=0)
-                print(f"Created samples batch: {samples_batch.shape}")
-                
-                # For now, create a meaningful style descriptor based on image analysis
-                # This will be replaced with actual DiffusionPen style encoder when available
-                style_characteristics = {
-                    'avg_intensity': float(torch.mean(samples_batch).item()),
-                    'contrast': float(torch.std(samples_batch).item()),
-                    'sample_count': successful_samples,
-                    'image_stats': {
-                        'min_val': float(torch.min(samples_batch).item()),
-                        'max_val': float(torch.max(samples_batch).item()),
-                        'mean_val': float(torch.mean(samples_batch).item())
-                    }
+                print(f"Preprocessed sample {i+1}/{successful_samples}: {img_tensor.shape}")
+            
+            # Stack all samples into a batch
+            samples_batch = torch.cat(processed_samples, dim=0)
+            print(f"Created samples batch: {samples_batch.shape}")
+            
+            # For now, create a meaningful style descriptor based on image analysis
+            # This will be replaced with actual DiffusionPen style encoder when available
+            style_characteristics = {
+                'avg_intensity': float(torch.mean(samples_batch).item()),
+                'contrast': float(torch.std(samples_batch).item()),
+                'sample_count': successful_samples,
+                'image_stats': {
+                    'min_val': float(torch.min(samples_batch).item()),
+                    'max_val': float(torch.max(samples_batch).item()),
+                    'mean_val': float(torch.mean(samples_batch).item())
                 }
-                
-                # Generate unique embedding ID for this user's style
-                import uuid
-                embedding_id = f"style_emb_{user_id}_{uuid.uuid4().hex[:8]}"
-                
-                # Save the style data and characteristics  
-                style_data = {
-                    'embedding_id': embedding_id,
-                    'user_id': user_id,
-                    'num_samples': successful_samples,
-                    'style_characteristics': style_characteristics,
-                    'samples_tensor_shape': list(samples_batch.shape),
-                    'created_at': str(__import__('datetime').datetime.now())
-                }
-                
-                # Save to file for the generation pipeline to use
-                style_file_path = os.path.join(model_output_dir, f"{embedding_id}.json")
-                import json
-                with open(style_file_path, 'w') as f:
-                    json.dump(style_data, f, indent=2)
-                
-                # Also save the processed samples tensor
-                samples_file_path = os.path.join(model_output_dir, f"{embedding_id}_samples.pt") 
-                torch.save(samples_batch, samples_file_path)
-                
-                print(f"✅ Style embedding extracted and saved!")
-                print(f"Embedding ID: {embedding_id}")
-                print(f"Style characteristics: {style_characteristics}")
-                print(f"Saved style data to: {style_file_path}")
-                print(f"Saved samples tensor to: {samples_file_path}")
-                
-                return embedding_id
-                
-            except Exception as e:
-                print(f"Error extracting style embeddings: {e}")
-                # Fallback to generated embedding ID
-                import hashlib
-                sample_hash = hashlib.md5(str(samples).encode()).hexdigest()[:8]
-                fallback_embedding_id = f"style_emb_fallback_{user_id}_{sample_hash}"
-                return fallback_embedding_id
+            }
+            
+            # Generate unique embedding ID for this user's style
+            import uuid
+            embedding_id = f"style_emb_{user_id}_{uuid.uuid4().hex[:8]}"
+            
+            # Save the style data and characteristics  
+            style_data = {
+                'embedding_id': embedding_id,
+                'user_id': user_id,
+                'num_samples': successful_samples,
+                'style_characteristics': style_characteristics,
+                'samples_tensor_shape': list(samples_batch.shape),
+                'created_at': str(__import__('datetime').datetime.now())
+            }
+            
+            # Save to file for the generation pipeline to use
+            style_file_path = os.path.join(model_output_dir, f"{embedding_id}.json")
+            import json
+            with open(style_file_path, 'w') as f:
+                json.dump(style_data, f, indent=2)
+            
+            # Also save the processed samples tensor
+            samples_file_path = os.path.join(model_output_dir, f"{embedding_id}_samples.pt") 
+            torch.save(samples_batch, samples_file_path)
+            
+            print(f"✅ Style embedding extracted and saved!")
+            print(f"Embedding ID: {embedding_id}")
+            print(f"Style characteristics: {style_characteristics}")
+            print(f"Saved style data to: {style_file_path}")
+            print(f"Saved samples tensor to: {samples_file_path}")
+            
+            return embedding_id
+            
+        except Exception as e:
+            print(f"Error extracting style embeddings: {e}")
+            # Fallback to generated embedding ID
+            import hashlib
+            sample_hash = hashlib.md5(str(samples).encode()).hexdigest()[:8]
+            fallback_embedding_id = f"style_emb_fallback_{user_id}_{sample_hash}"
+            return fallback_embedding_id
                     
     except Exception as e:
         print(f"❌ Critical error in style encoder training: {e}")
