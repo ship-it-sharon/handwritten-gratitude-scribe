@@ -290,16 +290,21 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
     }
   };
 
-  const acceptValidationOverride = () => {
+  const acceptValidationOverride = async () => {
     if (validationResult?.originalImageData) {
+      console.log('🔄 User accepted validation override - saving sample anyway');
       // Use the stored image data directly
       setUploadedImage(validationResult.originalImageData);
       setValidationResult(null);
+      
+      // CRITICAL: Save to database immediately when user accepts override
+      await handleImageCapture(validationResult.originalImageData);
+      
       // Complete the sample immediately
       const newCompleted = new Set(completedSamples);
       newCompleted.add(currentSample);
       setCompletedSamples(newCompleted);
-      toast.success("Handwriting sample accepted!");
+      toast.success("Handwriting sample accepted and saved!");
     }
   };
 
