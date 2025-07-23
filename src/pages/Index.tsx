@@ -179,10 +179,8 @@ const Index = () => {
         return <HandwritingCapture 
           onNext={(samples) => {
             setHandwritingSamples(samples);
-            // Samples are already saved individually during capture
-            // Just start training with all available samples
-            startTraining();
-            setCurrentStep('training');
+            // Move to preview step first so user can confirm samples
+            setCurrentStep('preview-samples');
           }} 
           user={user}
         />;
