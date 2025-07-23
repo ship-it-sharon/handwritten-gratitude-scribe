@@ -246,7 +246,7 @@ const SamplePreviewScreen = ({
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {samples.map((sample, index) => (
+            {samples.filter(sample => sample && sample !== null).map((sample, index) => (
               <Card key={index} className="p-4 bg-paper">
                 <div className="aspect-square w-full flex items-center justify-center">
                   {typeof sample === 'string' ? (
