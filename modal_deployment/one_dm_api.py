@@ -316,12 +316,10 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
         model_output_dir = "/tmp/persistent_styles"  # Match generation lookup path
         os.makedirs(style_dir, exist_ok=True)
         os.makedirs(model_output_dir, exist_ok=True)
-            os.makedirs(style_dir, exist_ok=True)
-            os.makedirs(model_output_dir, exist_ok=True)
-            
-            print(f"Created temporary directories:")
-            print(f"  Style samples: {style_dir}")
-            print(f"  Model output: {model_output_dir}")
+        
+        print(f"Created persistent directories:")
+        print(f"  Style samples: {style_dir}")
+        print(f"  Model output: {model_output_dir}")
             
             # Process and save training samples
             successful_samples = 0
