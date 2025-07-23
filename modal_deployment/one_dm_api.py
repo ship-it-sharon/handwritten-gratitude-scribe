@@ -408,10 +408,8 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
             
             try:
                 # Use a fallback training approach since DiffusionPen training script may not exist
-                # Create a minimal training command that works with available models
-                try:
-                    # Create a simple training script without complex f-string formatting
-                    training_script = f"""import sys
+                # Create a simple training script without complex f-string formatting
+                training_script = f"""import sys
 import os
 import torch
 import uuid
@@ -423,7 +421,7 @@ model_path = os.path.join('{model_output_dir}', 'style_model_' + model_id + '.pt
 torch.save({{'model_id': model_id, 'trained_on': '{successful_samples} samples'}}, model_path)
 print('Style encoder training completed. Model saved to: ' + model_path)
 print('Model ID: ' + model_id)"""
-                    cmd = ["python", "-c", training_script]
+                cmd = ["python", "-c", training_script]
                 
                 print(f"Executing DiffusionPen training command:")
                 print(f"  {' '.join(cmd)}")
