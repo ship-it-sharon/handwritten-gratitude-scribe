@@ -128,6 +128,8 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
         userId || undefined // Pass user ID for authenticated users
       );
       
+      console.log('🎭 generateHandwritingStyle completed with response type:', typeof response);
+      
       // Handle different response types
       if (!response) {
         console.warn('⚠️ No response from generateHandwritingStyle');
