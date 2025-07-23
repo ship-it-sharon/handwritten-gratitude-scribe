@@ -51,72 +51,48 @@ const Index = () => {
     }
   };
 
-  const saveUserSamples = async (samples: (string | HTMLCanvasElement)[]) => {
+  const startTraining = async () => {
     if (!user) return;
 
-    // Convert samples to base64 strings
-    const sampleImages = samples.map(sample => {
-      if (typeof sample === 'string') {
-        return sample;
-      } else {
-        return sample.toDataURL();
-      }
-    });
-
     try {
-      // Check if user already has a style model
-      const { data: existingModel } = await supabase
+      // Get the latest samples from database
+      const { data: modelData, error: modelError } = await supabase
         .from('user_style_models')
-        .select('*')
+        .select('sample_images')
         .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
-      let data, error;
-
-      if (existingModel) {
-        // Update existing model with new samples
-        ({ data, error } = await supabase
-          .from('user_style_models')
-          .update({
-            sample_images: sampleImages,
-            training_status: 'pending',
-            training_started_at: null,
-            training_completed_at: null
-          })
-          .eq('user_id', user.id)
-          .select()
-          .single());
-      } else {
-        // Create new model
-        ({ data, error } = await supabase
-          .from('user_style_models')
-          .insert({
-            user_id: user.id,
-            model_id: `user_${user.id}_${Date.now()}`,
-            sample_images: sampleImages,
-            training_status: 'pending'
-          })
-          .select()
-          .single());
-      }
-
-      if (error) {
-        console.error('Database error:', error);
+      if (modelError || !modelData?.sample_images) {
+        console.error('No samples found for training:', modelError);
         toast({
           variant: "destructive",
-          title: "Error saving samples",
-          description: error.message,
+          title: "No samples found",
+          description: "Please complete handwriting capture first.",
         });
         return;
       }
 
-      setUserStyleModel(data);
+      const validSamples = Array.isArray(modelData.sample_images) 
+        ? modelData.sample_images.filter((img: any) => img && typeof img === 'string') 
+        : [];
       
-      // Start training process in background
-      console.log('🚀 Starting training process with samples:', sampleImages.length);
+      if (validSamples.length === 0) {
+        console.error('No valid samples found for training');
+        toast({
+          variant: "destructive",
+          title: "No valid samples",
+          description: "Please capture some handwriting samples first.",
+        });
+        return;
+      }
+
+      // Start training process
+      console.log('🚀 Starting training process with samples:', validSamples.length);
       const { data: trainingData, error: trainingError } = await supabase.functions.invoke('train-handwriting', {
         body: {
-          samples: sampleImages.slice(0, 5), // Limit to 5 samples for training
+          samples: validSamples.slice(0, 5), // Limit to 5 samples for training
           user_id: user.id
         }
       });
@@ -138,7 +114,7 @@ const Index = () => {
         });
       }
     } catch (error: any) {
-      console.error('Error in saveUserSamples:', error);
+      console.error('Error starting training:', error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -190,7 +166,9 @@ const Index = () => {
         return <HandwritingCapture 
           onNext={(samples) => {
             setHandwritingSamples(samples);
-            saveUserSamples(samples);
+            // Samples are already saved individually during capture
+            // Just start training with all available samples
+            startTraining();
             setCurrentStep('preview-samples');
           }} 
           user={user}

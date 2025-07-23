@@ -412,29 +412,16 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
     newUploadedImages.set(currentSample, imageData);
     setUploadedImages(newUploadedImages);
     
-    // Save to database immediately if user is authenticated
+    // Save this individual sample to database immediately if user is authenticated
     if (user) {
-      console.log('🚀 Starting database save operation...', { 
+      console.log('🚀 Saving individual sample to database...', { 
         userId: user.id, 
         currentSample,
-        uploadedImagesSize: newUploadedImages.size 
+        sampleIndex: currentSample
       });
       
       try {
-        // Create array with all samples, preserving order and null values for unfinished samples
-        const allSampleImages = Array.from({ length: 5 }, (_, index) => {
-          return newUploadedImages.get(index) || null;
-        });
-        
-        console.log('💾 Prepared samples for database:', { 
-          currentSample, 
-          totalSamples: allSampleImages.filter(img => img !== null).length,
-          allSamples: allSampleImages.map((img, idx) => ({ index: idx, hasImage: !!img })),
-          firstSamplePreview: allSampleImages[0] ? allSampleImages[0].substring(0, 50) + '...' : null
-        });
-        
         // Check if user already has a style model
-        console.log('🔍 Checking for existing model...');
         const { data: existingModel, error: queryError } = await supabase
           .from('user_style_models')
           .select('*')
@@ -446,33 +433,35 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
           throw queryError;
         }
 
-        console.log('📋 Existing model check result:', { 
-          hasExisting: !!existingModel, 
-          existingId: existingModel?.id 
-        });
+        // Create or update the samples array with only valid samples (no nulls)
+        let currentSamples: string[] = [];
+        if (existingModel?.sample_images && Array.isArray(existingModel.sample_images)) {
+          currentSamples = existingModel.sample_images.filter((img: any) => img && typeof img === 'string') as string[];
+        }
 
+        // Add the new sample
+        const allValidSamples = Array.from(newUploadedImages.values());
+        
         let result;
         if (existingModel) {
-          console.log('🔄 Updating existing model...');
-          // Update existing model with new samples
+          console.log('🔄 Updating existing model with individual sample...');
           result = await supabase
             .from('user_style_models')
             .update({
-              sample_images: allSampleImages,
+              sample_images: allValidSamples,
               training_status: 'pending',
               training_started_at: null,
               training_completed_at: null
             })
             .eq('user_id', user.id);
         } else {
-          console.log('➕ Creating new model...');
-          // Create new model
+          console.log('➕ Creating new model with first sample...');
           result = await supabase
             .from('user_style_models')
             .insert({
               user_id: user.id,
               model_id: `user_${user.id}_${Date.now()}`,
-              sample_images: allSampleImages,
+              sample_images: allValidSamples,
               training_status: 'pending'
             });
         }
