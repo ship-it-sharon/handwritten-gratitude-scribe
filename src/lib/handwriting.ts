@@ -35,6 +35,13 @@ export const generateHandwritingStyle = async (
   try {
     const { supabase } = await import('@/integrations/supabase/client');
     
+    console.log('🎨 generateHandwritingStyle called with:', { 
+      textLength: text.length, 
+      samplesCount: samples?.length || 0,
+      hasModelId: !!modelId,
+      hasStyle: !!style 
+    });
+
     const requestBody: any = {
       text,
       samples: samples || [],
@@ -42,9 +49,11 @@ export const generateHandwritingStyle = async (
 
     // If we have a model ID, use it for trained model generation
     if (modelId) {
+      console.log('🎯 Using trained model:', modelId);
       requestBody.model_id = modelId;
     } else if (style) {
       // Otherwise use style characteristics for initial preview
+      console.log('🎨 Using style characteristics:', style);
       requestBody.styleCharacteristics = {
         slant: style.slant,
         spacing: style.spacing,
@@ -53,6 +62,11 @@ export const generateHandwritingStyle = async (
         pressure: style.pressure,
       };
     }
+
+    console.log('📤 Sending request to edge function:', { 
+      ...requestBody, 
+      samples: `${requestBody.samples.length} samples` 
+    });
     
     const { data, error } = await supabase.functions.invoke('generate-handwriting', {
       body: requestBody,

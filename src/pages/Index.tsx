@@ -14,7 +14,7 @@ const Index = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [currentStep, setCurrentStep] = useState<'welcome' | 'capture' | 'generate' | 'preview'>('welcome');
+  const [currentStep, setCurrentStep] = useState<'welcome' | 'capture' | 'preview-samples' | 'generate' | 'preview'>('welcome');
   const [handwritingSamples, setHandwritingSamples] = useState<(string | HTMLCanvasElement)[]>([]);
   const [userStyleModel, setUserStyleModel] = useState<any>(null);
 
@@ -43,9 +43,10 @@ const Index = () => {
 
     if (data && !error) {
       setUserStyleModel(data);
-      if (data.sample_images) {
-        // If user has samples, they can go directly to generate
-        setCurrentStep('generate');
+      if (data.sample_images && Array.isArray(data.sample_images)) {
+        // If user has samples, show them first before generating
+        setHandwritingSamples(data.sample_images as string[]);
+        setCurrentStep('preview-samples');
       }
     }
   };
@@ -150,7 +151,7 @@ const Index = () => {
   const regenerateFromSavedSamples = () => {
     if (userStyleModel?.sample_images) {
       setHandwritingSamples(userStyleModel.sample_images);
-      setCurrentStep('generate');
+      setCurrentStep('preview-samples');
     }
   };
 
@@ -186,9 +187,15 @@ const Index = () => {
           onNext={(samples) => {
             setHandwritingSamples(samples);
             saveUserSamples(samples);
-            setCurrentStep('generate');
+            setCurrentStep('preview-samples');
           }} 
           user={user}
+        />;
+      case 'preview-samples':
+        return <SamplePreviewScreen 
+          samples={handwritingSamples} 
+          onContinue={() => setCurrentStep('generate')} 
+          onRetake={() => setCurrentStep('capture')} 
         />;
       case 'generate':
         return <NoteGenerator onNext={() => setCurrentStep('preview')} handwritingSamples={handwritingSamples} />;
@@ -210,6 +217,79 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-warm">
       {renderStep()}
+    </div>
+  );
+};
+
+const SamplePreviewScreen = ({ 
+  samples, 
+  onContinue, 
+  onRetake 
+}: { 
+  samples: (string | HTMLCanvasElement)[];
+  onContinue: () => void;
+  onRetake: () => void;
+}) => {
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Card className="w-full max-w-4xl p-8 shadow-elegant">
+        <div className="space-y-6">
+          <div className="text-center space-y-2">
+            <h1 className="text-3xl font-elegant text-ink">Your Handwriting Samples</h1>
+            <p className="text-muted-foreground">
+              Review your samples before creating your note
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {samples.map((sample, index) => (
+              <Card key={index} className="p-4 bg-paper">
+                <div className="aspect-square w-full flex items-center justify-center">
+                  {typeof sample === 'string' ? (
+                    <img 
+                      src={sample} 
+                      alt={`Sample ${index + 1}`}
+                      className="max-w-full max-h-full object-contain rounded-md"
+                    />
+                  ) : sample ? (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <canvas 
+                        ref={(canvas) => {
+                          if (canvas && sample instanceof HTMLCanvasElement) {
+                            const ctx = canvas.getContext('2d');
+                            if (ctx) {
+                              canvas.width = sample.width;
+                              canvas.height = sample.height;
+                              ctx.drawImage(sample, 0, 0);
+                            }
+                          }
+                        }}
+                        className="max-w-full max-h-full border rounded-md"
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground text-sm">Empty sample</div>
+                  )}
+                </div>
+                <p className="text-center text-sm text-muted-foreground mt-2">
+                  Sample {index + 1}
+                </p>
+              </Card>
+            ))}
+          </div>
+          
+          <div className="flex gap-4 justify-center">
+            <Button variant="outline" onClick={onRetake}>
+              <RotateCcw className="w-4 h-4" />
+              Retake Samples
+            </Button>
+            <Button variant="elegant" size="lg" onClick={onContinue}>
+              Continue to Note Generation
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 };

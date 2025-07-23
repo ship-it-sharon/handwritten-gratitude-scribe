@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sparkles, ChevronRight, User, MapPin, Gift } from "lucide-react";
 import { HandwritingPreview } from "./HandwritingPreview";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface NoteGeneratorProps {
   onNext: () => void;
@@ -25,6 +27,7 @@ const occasions = [
 ];
 
 export const NoteGenerator = ({ onNext, handwritingSamples = [] }: NoteGeneratorProps) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     recipientName: "",
     occasion: "",
@@ -36,6 +39,37 @@ export const NoteGenerator = ({ onNext, handwritingSamples = [] }: NoteGenerator
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedNote, setGeneratedNote] = useState("");
+  const [samples, setSamples] = useState<(string | HTMLCanvasElement)[]>(handwritingSamples);
+
+  // Load samples from database if not provided
+  useEffect(() => {
+    const loadSamples = async () => {
+      if (handwritingSamples.length > 0) {
+        setSamples(handwritingSamples);
+        return;
+      }
+
+      if (!user) return;
+
+      console.log('🔍 Loading samples from database for user:', user.id);
+      const { data, error } = await supabase
+        .from('user_style_models')
+        .select('sample_images')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data && data.sample_images && Array.isArray(data.sample_images)) {
+        console.log('✅ Loaded samples from database:', data.sample_images.length);
+        setSamples(data.sample_images as string[]);
+      } else {
+        console.log('❌ No samples found in database');
+      }
+    };
+
+    loadSamples();
+  }, [user, handwritingSamples]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -200,7 +234,7 @@ ${formData.personalMessage ? `${formData.personalMessage}\n\n` : ''}With love an
               {generatedNote ? (
                 <HandwritingPreview 
                   text={generatedNote}
-                  samples={handwritingSamples}
+                  samples={samples}
                 />
               ) : (
                 <Card className="p-6 h-full bg-paper shadow-soft">
