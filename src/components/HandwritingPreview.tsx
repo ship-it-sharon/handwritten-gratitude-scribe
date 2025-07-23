@@ -33,6 +33,36 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
     setIsAnalyzing(true);
     console.log('🔍 Starting handwriting analysis with samples:', samples.length);
     try {
+      // First, trigger the actual training process if we have a user ID
+      if (userId && samples.length > 0) {
+        console.log('🚀 Starting backend training process...');
+        
+        // Convert samples to base64 for training
+        const base64Samples: string[] = [];
+        for (const sample of samples) {
+          if (typeof sample === 'string') {
+            base64Samples.push(sample);
+          } else if (sample instanceof HTMLCanvasElement) {
+            const base64 = sample.toDataURL('image/png');
+            base64Samples.push(base64);
+          }
+        }
+        
+        // Call the training function
+        const { data: trainingData, error: trainingError } = await supabase.functions.invoke('train-handwriting', {
+          body: {
+            samples: base64Samples.slice(0, 5),
+            user_id: userId
+          }
+        });
+        
+        console.log('🚀 Training function response:', { trainingData, trainingError });
+        
+        if (trainingError) {
+          console.error('❌ Training error:', trainingError);
+        }
+      }
+      
       const style = analyzeHandwritingSamples(samples);
       console.log('📊 Analyzed style:', style);
       setHandwritingStyle(style);
