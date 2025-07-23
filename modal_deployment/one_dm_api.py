@@ -367,70 +367,82 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
             # Extract style embeddings from user samples using pre-trained DiffusionPen
             print("=== EXTRACTING STYLE EMBEDDINGS FROM USER SAMPLES ===")
             
-            # Check if we have pre-trained models
-            pretrained_models_path = os.path.join(diffusionpen_path, "style_models")
-            style_encoder_path = os.path.join(pretrained_models_path, "iam_style_diffusionpen.pth")
-            
-            print(f"Pre-trained models path: {pretrained_models_path}")
-            print(f"Style encoder exists: {os.path.exists(style_encoder_path)}")
-            
-            if not os.path.exists(style_encoder_path):
-                print("WARNING: Pre-trained style encoder not found - downloading may be needed")
-            
             try:
-                # Load the pre-trained style encoder and extract embeddings
+                # Import required modules for style extraction
                 import torch
                 import torchvision.transforms as transforms
                 from PIL import Image
                 import numpy as np
                 
-                print("Loading pre-trained DiffusionPen style encoder...")
+                print("Loading DiffusionPen components for style extraction...")
                 
-                # Create transforms for preprocessing user samples
+                # Create transforms for preprocessing user samples (DiffusionPen standard)
                 transform = transforms.Compose([
                     transforms.Resize((64, 64)),  # DiffusionPen standard size
+                    transforms.Grayscale(num_output_channels=1),  # Convert to grayscale
                     transforms.ToTensor(),
                     transforms.Normalize(mean=[0.5], std=[0.5])  # Normalize to [-1, 1]
                 ])
                 
                 # Process each user sample to extract style features
-                style_embeddings = []
+                processed_samples = []
                 for i in range(successful_samples):
                     sample_path = os.path.join(style_dir, f"user_sample_{i:03d}.png")
                     
                     # Load and preprocess the image
-                    img = Image.open(sample_path).convert('L')  # Convert to grayscale
+                    img = Image.open(sample_path).convert('RGB')
                     img_tensor = transform(img).unsqueeze(0)  # Add batch dimension
+                    processed_samples.append(img_tensor)
                     
-                    # For now, create a placeholder embedding since we need the actual model loading
-                    # In the real implementation, this would be: embedding = style_encoder(img_tensor)
-                    embedding = torch.randn(1, 512)  # Placeholder 512-dim embedding
-                    style_embeddings.append(embedding)
-                    
-                    print(f"Processed sample {i+1}/{successful_samples}")
+                    print(f"Preprocessed sample {i+1}/{successful_samples}: {img_tensor.shape}")
                 
-                # Average the embeddings across all user samples
-                avg_embedding = torch.mean(torch.cat(style_embeddings, dim=0), dim=0)
+                # Stack all samples into a batch
+                samples_batch = torch.cat(processed_samples, dim=0)
+                print(f"Created samples batch: {samples_batch.shape}")
+                
+                # For now, create a meaningful style descriptor based on image analysis
+                # This will be replaced with actual DiffusionPen style encoder when available
+                style_characteristics = {
+                    'avg_intensity': float(torch.mean(samples_batch).item()),
+                    'contrast': float(torch.std(samples_batch).item()),
+                    'sample_count': successful_samples,
+                    'image_stats': {
+                        'min_val': float(torch.min(samples_batch).item()),
+                        'max_val': float(torch.max(samples_batch).item()),
+                        'mean_val': float(torch.mean(samples_batch).item())
+                    }
+                }
                 
                 # Generate unique embedding ID for this user's style
                 import uuid
                 embedding_id = f"style_emb_{user_id}_{uuid.uuid4().hex[:8]}"
                 
-                # Save the style embedding
-                embedding_path = os.path.join(model_output_dir, f"{embedding_id}.pt")
-                torch.save({
-                    'embedding': avg_embedding,
+                # Save the style data and characteristics  
+                style_data = {
+                    'embedding_id': embedding_id,
                     'user_id': user_id,
                     'num_samples': successful_samples,
-                    'embedding_id': embedding_id
-                }, embedding_path)
+                    'style_characteristics': style_characteristics,
+                    'samples_tensor_shape': list(samples_batch.shape),
+                    'created_at': str(__import__('datetime').datetime.now())
+                }
+                
+                # Save to file for the generation pipeline to use
+                style_file_path = os.path.join(model_output_dir, f"{embedding_id}.json")
+                import json
+                with open(style_file_path, 'w') as f:
+                    json.dump(style_data, f, indent=2)
+                
+                # Also save the processed samples tensor
+                samples_file_path = os.path.join(model_output_dir, f"{embedding_id}_samples.pt") 
+                torch.save(samples_batch, samples_file_path)
                 
                 print(f"✅ Style embedding extracted and saved!")
                 print(f"Embedding ID: {embedding_id}")
-                print(f"Embedding shape: {avg_embedding.shape}")
-                print(f"Saved to: {embedding_path}")
+                print(f"Style characteristics: {style_characteristics}")
+                print(f"Saved style data to: {style_file_path}")
+                print(f"Saved samples tensor to: {samples_file_path}")
                 
-                # Return the embedding ID (not a trained model ID)
                 return embedding_id
                 
             except Exception as e:
@@ -441,28 +453,6 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
                 fallback_embedding_id = f"style_emb_fallback_{user_id}_{sample_hash}"
                 return fallback_embedding_id
                     
-            except subprocess.TimeoutExpired:
-                print("❌ Training timed out after 30 minutes")
-                # Fall back to style profile approach
-                import hashlib
-                sample_hash = hashlib.md5(str(samples).encode()).hexdigest()[:8]
-                fallback_model_id = f"style_profile_timeout_{user_id}_{sample_hash}"
-                print(f"Timeout fallback to style profile: {fallback_model_id}")
-                return fallback_model_id
-                
-            except Exception as training_error:
-                print(f"❌ Training failed with exception: {training_error}")
-                print(f"Exception type: {type(training_error)}")
-                import traceback
-                print(f"Traceback: {traceback.format_exc()}")
-                
-                # Fall back to style profile approach
-                import hashlib
-                sample_hash = hashlib.md5(str(samples).encode()).hexdigest()[:8]
-                fallback_model_id = f"style_profile_error_{user_id}_{sample_hash}"
-                print(f"Error fallback to style profile: {fallback_model_id}")
-                return fallback_model_id
-                
     except Exception as e:
         print(f"❌ Critical error in style encoder training: {e}")
         print(f"Exception type: {type(e)}")
@@ -477,10 +467,11 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
         return fallback_model_id
 
 async def generate_with_trained_model(text: str, model_id: str, model: dict, style_params: dict):
-    """Generate handwriting using a trained model"""
+    """Generate handwriting using user's style embeddings"""
     import torch
     import tempfile
     import os
+    import json
     from PIL import Image
     
     try:
@@ -488,29 +479,151 @@ async def generate_with_trained_model(text: str, model_id: str, model: dict, sty
         device = model['device']
         diffusionpen_path = model['diffusionpen_path']
         
-        print(f"Generating with trained model {model_id}")
+        print(f"Generating with user style model: {model_id}")
         
-        # Look for DiffusionPen inference script
-        possible_scripts = ["inference.py", "demo.py", "main.py", "generate.py"]
-        inference_script = None
+        # Try to load the user's style data
+        style_data = None
         
-        for script_name in possible_scripts:
-            script_path = os.path.join(diffusionpen_path, script_name)
-            if os.path.exists(script_path):
-                inference_script = script_path
-                break
+        # Look for the style embedding file in temporary storage or persistent storage
+        possible_locations = [
+            f"/tmp/style_out/{model_id}.json",
+            f"/tmp/models/{model_id}.json",
+            f"/root/models/{model_id}.json"
+        ]
         
-        if inference_script:
-            # TODO: Implement actual trained model loading and inference
-            # For now, fall back to enhanced stable diffusion
-            print("Trained model inference not yet implemented, using enhanced fallback")
-            
-        # Enhanced fallback with better prompts
-        return await generate_fallback_handwriting(text, model, style_params)
+        for style_file_path in possible_locations:
+            if os.path.exists(style_file_path):
+                try:
+                    with open(style_file_path, 'r') as f:
+                        style_data = json.load(f)
+                    print(f"✅ Loaded style data from: {style_file_path}")
+                    break
+                except Exception as e:
+                    print(f"Error loading style data from {style_file_path}: {e}")
+                    continue
+        
+        if style_data:
+            # Generate handwriting using the user's specific style characteristics
+            return await generate_styled_handwriting(text, style_data, model, style_params)
+        else:
+            print(f"⚠️ Style data not found for model {model_id}, using enhanced fallback")
+            return await generate_fallback_handwriting(text, model, style_params)
         
     except Exception as e:
         print(f"Error generating with trained model: {e}")
+        import traceback
+        traceback.print_exc()
         return await generate_fallback_handwriting(text, model, style_params)
+
+async def generate_styled_handwriting(text: str, style_data: dict, model: dict, style_params: dict):
+    """Generate handwriting using user's specific style characteristics"""
+    import torch
+    from PIL import Image
+    
+    try:
+        pipeline = model['pipeline']
+        device = model['device']
+        
+        print("Using user-specific style for generation")
+        print(f"Style characteristics: {style_data.get('style_characteristics', {})}")
+        
+        # Extract style characteristics from the user's data
+        style_chars = style_data.get('style_characteristics', {})
+        avg_intensity = style_chars.get('avg_intensity', 0.5)
+        contrast = style_chars.get('contrast', 0.3)
+        sample_count = style_chars.get('sample_count', 1)
+        
+        # Create a personalized prompt based on the user's style analysis
+        intensity_desc = "light and delicate" if avg_intensity > 0.7 else "bold and dark" if avg_intensity < 0.3 else "medium intensity"
+        contrast_desc = "high contrast" if contrast > 0.4 else "low contrast" if contrast < 0.2 else "natural contrast"
+        
+        # Build a style-informed prompt
+        style_prompt = f"handwritten text saying '{text}', {intensity_desc} handwriting, {contrast_desc}, natural pen strokes"
+        
+        if sample_count >= 3:
+            style_prompt += ", consistent personal handwriting style"
+        
+        # Enhanced prompt with style characteristics
+        prompt = f"beautiful {style_prompt}, black ink on white paper, clean and legible, realistic handwriting, personal writing style"
+        negative_prompt = "printed text, typed text, computer font, digital text, blurry, distorted, pixelated, low quality, artifacts, messy, generic handwriting"
+        
+        print(f"Style-informed prompt: {prompt}")
+        
+        with torch.no_grad():
+            # Generate handwriting image with user-style parameters
+            result = pipeline(
+                prompt=prompt,
+                negative_prompt=negative_prompt,
+                height=128,
+                width=512,
+                num_inference_steps=50,  # High quality steps
+                guidance_scale=8.0,      # Strong prompt following
+                generator=torch.Generator(device=device).manual_seed(42)
+            )
+            
+            generated_image = result.images[0]
+            print("Generated image using user-specific style")
+        
+        # Post-process with user-style considerations
+        generated_image = post_process_styled_handwriting(generated_image, style_chars)
+        return generated_image
+        
+    except Exception as e:
+        print(f"Error in styled generation: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Fallback to regular generation
+        return await generate_fallback_handwriting(text, model, style_params)
+
+def post_process_styled_handwriting(image, style_characteristics):
+    """Post-process generated image using user's style characteristics"""
+    import cv2
+    import numpy as np
+    from PIL import Image, ImageEnhance
+    
+    # Convert PIL to numpy
+    img_array = np.array(image)
+    
+    # Convert to grayscale
+    if len(img_array.shape) == 3:
+        gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+    else:
+        gray = img_array
+    
+    # Apply adaptive thresholding
+    adaptive_thresh = cv2.adaptiveThreshold(
+        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+    )
+    
+    # Invert if needed (handwriting should be dark on light background)
+    if np.mean(adaptive_thresh) > 127:
+        adaptive_thresh = cv2.bitwise_not(adaptive_thresh)
+    
+    # Convert back to PIL
+    processed_image = Image.fromarray(adaptive_thresh).convert('RGB')
+    
+    # Apply style-specific enhancements
+    avg_intensity = style_characteristics.get('avg_intensity', 0.5)
+    contrast = style_characteristics.get('contrast', 0.3)
+    
+    # Adjust contrast based on user's style
+    if contrast > 0.4:  # High contrast style
+        enhancer = ImageEnhance.Contrast(processed_image)
+        processed_image = enhancer.enhance(1.3)
+    elif contrast < 0.2:  # Low contrast style
+        enhancer = ImageEnhance.Contrast(processed_image)
+        processed_image = enhancer.enhance(0.9)
+    else:  # Natural contrast
+        enhancer = ImageEnhance.Contrast(processed_image)
+        processed_image = enhancer.enhance(1.1)
+    
+    # Adjust brightness based on average intensity
+    if avg_intensity < 0.3:  # Dark writing style
+        enhancer = ImageEnhance.Brightness(processed_image)
+        processed_image = enhancer.enhance(0.95)
+    
+    print(f"Applied style-specific post-processing: contrast={contrast}, intensity={avg_intensity}")
+    return processed_image
 
 async def generate_fallback_handwriting(text: str, model: dict, style_params: dict):
     """Generate handwriting using enhanced Stable Diffusion prompts"""
