@@ -366,17 +366,27 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
       if (isValid) {
         console.log('✅ Validation passed, setting uploaded image and calling handleImageCapture...');
         setUploadedImage(result);
+        
+        // Complete the sample immediately since validation passed
+        const newCompleted = new Set(completedSamples);
+        newCompleted.add(currentSample);
+        setCompletedSamples(newCompleted);
+        
         // CRITICAL: Also call handleImageCapture to save to database
         await handleImageCapture(result);
         toast.success("Handwriting sample validated and saved successfully!");
       } else {
-        console.log('❌ Validation failed');
+        console.log('❌ Validation failed, checking for override case...');
+        console.log('🔍 Validation result:', validationResult);
         // Only reset if this is not an override case (validation result shows override UI)
         if (!validationResult || !validationResult.isHandwriting || validationResult.textMatches || !validationResult.extractedText) {
+          console.log('🔄 Resetting file input due to non-override validation failure');
           // Reset file input to allow selecting the same file again after validation failure
           if (fileInputRef.current) {
             fileInputRef.current.value = '';
           }
+        } else {
+          console.log('🔍 This appears to be an override case - keeping file input');
         }
         // If validationResult shows override UI, don't reset - let user choose
       }
@@ -428,6 +438,8 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
 
   const handleImageCapture = async (imageData: string) => {
     console.log('🎯 handleImageCapture called with image data length:', imageData.length);
+    console.log('🎯 Current sample index:', currentSample);
+    console.log('🎯 User authenticated:', !!user);
     
     // Update the uploaded images map
     const newUploadedImages = new Map(uploadedImages);
