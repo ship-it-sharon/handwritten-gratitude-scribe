@@ -113,12 +113,15 @@ const Index = () => {
       setUserStyleModel(data);
       
       // Start training process in background
-      const { error: trainingError } = await supabase.functions.invoke('train-handwriting', {
+      console.log('🚀 Starting training process with samples:', sampleImages.length);
+      const { data: trainingData, error: trainingError } = await supabase.functions.invoke('train-handwriting', {
         body: {
           samples: sampleImages.slice(0, 5), // Limit to 5 samples for training
           user_id: user.id
         }
       });
+
+      console.log('🚀 Training function response:', { trainingData, trainingError });
 
       if (trainingError) {
         console.error('Training failed to start:', trainingError);
@@ -128,6 +131,7 @@ const Index = () => {
           description: trainingError.message,
         });
       } else {
+        console.log('✅ Training started successfully:', trainingData);
         toast({
           title: "Training started!",
           description: "Your handwriting model is being trained. This will take 10-15 minutes.",

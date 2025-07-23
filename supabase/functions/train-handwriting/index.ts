@@ -1,231 +1,232 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
 interface TrainingRequest {
-  samples: string[] // base64 encoded images
-  user_id: string // User authentication
+  samples: string[];
+  user_id: string;
 }
 
 serve(async (req) => {
-  console.log('=== Training edge function called ===')
-  console.log('Method:', req.method)
-  console.log('URL:', req.url)
-  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    console.log('Handling CORS preflight request')
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
+  console.log('=== Train Handwriting Edge Function Called ===');
+  console.log('Method:', req.method);
+  console.log('URL:', req.url);
+
   try {
-    console.log('Parsing training request body...')
-    const body = await req.json() as TrainingRequest
+    console.log('Parsing request body...');
+    const { samples, user_id }: TrainingRequest = await req.json();
     
-    if (!body.samples || body.samples.length === 0) {
+    console.log('Request body parsed:', {
+      samplesCount: samples?.length || 0,
+      user_id: user_id?.substring(0, 8) + '...',
+    });
+
+    if (!samples || !Array.isArray(samples) || samples.length === 0) {
+      console.error('No samples provided');
       return new Response(
-        JSON.stringify({ error: 'Training samples are required' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+        JSON.stringify({ error: 'No handwriting samples provided' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    if (!body.user_id) {
+    if (!user_id) {
+      console.error('No user_id provided');
       return new Response(
-        JSON.stringify({ error: 'User ID is required for training' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
+        JSON.stringify({ error: 'User ID is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    console.log(`Training request for user ${body.user_id} with ${body.samples.length} samples`)
+    // Initialize Supabase client for database operations
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Initialize Supabase client
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    console.log('Training handwriting model for user:', user_id);
+    console.log('Using samples:', samples.length);
+
+    // Check if user already has a model and if it's already trained or training
+    const { data: existingModel, error: fetchError } = await supabase
+      .from('user_style_models')
+      .select('*')
+      .eq('user_id', user_id)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('Error fetching existing model:', fetchError);
+      return new Response(
+        JSON.stringify({ error: 'Database error checking existing model' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // If model is already trained or training, return early
+    if (existingModel?.training_status === 'completed') {
+      console.log('Model already trained, skipping training');
+      return new Response(
+        JSON.stringify({ 
+          message: 'Model already trained',
+          model_id: existingModel.model_id,
+          status: 'completed'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (existingModel?.training_status === 'training') {
+      console.log('Model already training, returning training status');
+      return new Response(
+        JSON.stringify({ 
+          message: 'Model is currently training',
+          model_id: existingModel.model_id,
+          status: 'training'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Generate a model ID for this training session
+    const model_id = `user_${user_id}_${Date.now()}`;
+    console.log('Generated model ID:', model_id);
+
+    // Update database to mark training as started
+    const { error: updateError } = await supabase
+      .from('user_style_models')
+      .update({
+        training_status: 'training',
+        training_started_at: new Date().toISOString(),
+        model_id: model_id
+      })
+      .eq('user_id', user_id);
+
+    if (updateError) {
+      console.error('Error updating training status:', updateError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to update training status' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('Training status updated, starting background training process...');
+
+    // Start the actual training process in the background
+    const trainingPromise = startTrainingProcess(samples, user_id, model_id, supabase);
+    
+    // Use EdgeRuntime.waitUntil to ensure the training continues even after response is sent
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+      EdgeRuntime.waitUntil(trainingPromise);
+    } else {
+      // Fallback for environments without EdgeRuntime
+      trainingPromise.catch(error => {
+        console.error('Background training failed:', error);
+      });
+    }
+
+    // Return immediate response
+    return new Response(
+      JSON.stringify({ 
+        message: 'Training started successfully',
+        model_id: model_id,
+        status: 'training',
+        estimated_time: '10-15 minutes'
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-    // Check if user already has a completed model
-    const { data: existingModel } = await supabase
-      .from('user_style_models')
-      .select('*')
-      .eq('user_id', body.user_id)
-      .eq('training_status', 'completed')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-    
-    if (existingModel) {
-      console.log("User already has a trained model:", existingModel.model_id);
-      return new Response(JSON.stringify({
-        status: 'already_trained',
-        message: 'You already have a trained handwriting model.',
-        model_id: existingModel.model_id
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Check if training is already in progress
-    const { data: trainingModel } = await supabase
-      .from('user_style_models')
-      .select('*')
-      .eq('user_id', body.user_id)
-      .in('training_status', ['training', 'pending'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-      
-    if (trainingModel) {
-      console.log("Training already in progress for user");
-      return new Response(JSON.stringify({
-        status: 'training_in_progress',
-        message: 'Your handwriting style is already being trained. Please wait.',
-        estimated_completion: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-        model_id: trainingModel.model_id
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Start new training
-    const newModelId = `user_${body.user_id}_${Date.now()}`;
-    console.log("Starting training for new model:", newModelId);
-    
-    // Insert training record
-    const { error: insertError } = await supabase
-      .from('user_style_models')
-      .insert({
-        user_id: body.user_id,
-        model_id: newModelId,
-        training_status: 'training',
-        sample_images: body.samples.slice(0, 5),
-        training_started_at: new Date().toISOString()
-      });
-
-    if (insertError) {
-      console.error('Error inserting training record:', insertError);
-      return new Response(JSON.stringify({
-        error: 'Failed to start training process',
-        details: insertError.message
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Start training process in background
-    const trainingResult = await startTrainingProcess(body.samples, body.user_id, newModelId, supabase);
-    
-    if (trainingResult.success) {
-      return new Response(JSON.stringify({
-        status: 'training_complete',
-        message: 'Your handwriting model has been trained successfully!',
-        model_id: trainingResult.modelId
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    } else {
-      return new Response(JSON.stringify({
-        status: 'training_started',
-        message: 'Training started. This will take 10-15 minutes.',
-        estimated_completion: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-        model_id: newModelId
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
   } catch (error) {
-    console.error('Error in train-handwriting function:', error)
+    console.error('Error in train-handwriting function:', error);
     return new Response(
-      JSON.stringify({ error: `Failed to process training request: ${error.message}` }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    )
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
-})
+});
 
-// Training function with proper status updates
 async function startTrainingProcess(samples: string[], userId: string, modelId: string, supabase: any): Promise<{success: boolean, modelId?: string}> {
+  console.log('=== Starting Training Process ===');
+  
   try {
-    console.log(`=== STARTING DIFFUSIONPEN TRAINING ===`);
-    console.log(`Training model ${modelId} with ${samples.length} samples`);
+    // Call Modal API for actual training
+    console.log('Making request to Modal training API...');
     
-    const trainingUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/train_style'
+    const modalApiUrl = 'https://ship-it-sharon--diffusionpen-handwriting-training-fastapi-app.modal.run/train_style';
+    console.log('Modal API URL:', modalApiUrl);
     
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 900000) // 15 minutes instead of 30
-    
-    const trainingPayload = {
-      samples: samples.slice(0, 5),
+    const requestBody = {
+      samples: samples.slice(0, 5), // Limit to 5 samples for training
       user_id: userId,
       model_id: modelId
-    }
+    };
     
-    console.log('Sending training request to Modal...')
-    
-    const trainingResponse = await fetch(trainingUrl, {
+    console.log('Request payload:', {
+      ...requestBody,
+      samples: `${requestBody.samples.length} samples`
+    });
+
+    const response = await fetch(modalApiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(trainingPayload),
-      signal: controller.signal
-    })
+      body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(30000) // 30 second timeout for training initiation
+    });
 
-    clearTimeout(timeoutId)
+    console.log('Modal API response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Modal API error:', errorText);
+      throw new Error(`Modal API failed with status ${response.status}: ${errorText}`);
+    }
 
-    if (trainingResponse.ok) {
-      const trainingData = await trainingResponse.json()
-      const trainedModelId = trainingData.model_id
-      
-      console.log(`Training completed successfully`)
-      console.log(`Trained model ID: ${trainedModelId}`)
-      
-      // Update training record as completed
+    const result = await response.json();
+    console.log('Modal API training result:', result);
+
+    // Update database with successful training completion
+    const { error: updateError } = await supabase
+      .from('user_style_models')
+      .update({
+        training_status: 'completed',
+        training_completed_at: new Date().toISOString(),
+        style_model_path: result.model_path || `models/${modelId}`
+      })
+      .eq('user_id', userId);
+
+    if (updateError) {
+      console.error('Error updating training completion status:', updateError);
+      throw updateError;
+    }
+
+    console.log('Training completed successfully for user:', userId);
+    return { success: true, modelId };
+
+  } catch (error) {
+    console.error('Training failed:', error);
+    
+    // Update database with failed status
+    try {
       await supabase
         .from('user_style_models')
         .update({
-          training_status: 'completed',
-          style_model_path: trainedModelId,
+          training_status: 'failed',
           training_completed_at: new Date().toISOString()
         })
-        .eq('model_id', modelId);
-      
-      return { success: true, modelId: trainedModelId }
-    } else {
-      const errorText = await trainingResponse.text()
-      console.log(`Training failed: ${trainingResponse.status} - ${errorText}`)
-      
-      await supabase
-        .from('user_style_models')
-        .update({ training_status: 'failed' })
-        .eq('model_id', modelId);
-        
-      return { success: false }
+        .eq('user_id', userId);
+    } catch (dbError) {
+      console.error('Failed to update failure status:', dbError);
     }
-  } catch (error) {
-    console.log(`Training failed with error: ${error}`)
-    
-    if (supabase) {
-      await supabase
-        .from('user_style_models')
-        .update({ training_status: 'failed' })
-        .eq('model_id', modelId);
-    }
-    
-    return { success: false }
+
+    return { success: false };
   }
 }
