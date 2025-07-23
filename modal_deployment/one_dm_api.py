@@ -320,9 +320,9 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
         print(f"Created persistent directories:")
         print(f"  Style samples: {style_dir}")
         print(f"  Model output: {model_output_dir}")
-            
-            # Process and save training samples
-            successful_samples = 0
+        
+        # Process and save training samples
+        successful_samples = 0
             for i, sample_data in enumerate(samples[:5]):  # Use up to 5 samples
                 try:
                     print(f"Processing sample {i+1}/{len(samples[:5])}...")
