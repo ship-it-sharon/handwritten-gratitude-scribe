@@ -402,21 +402,19 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
                 shutil.copy2(src_path, dst_path)
             
             try:
-                # Use a fallback training approach since DiffusionPen training script may not exist
-                # Create a simple training script without complex f-string formatting
-                training_script = f"""import sys
-import os
-import torch
-import uuid
-print('Training style encoder with user samples...')
-print('Samples directory: {custom_dataset_dir}')
-print('Output directory: {model_output_dir}')
-model_id = str(uuid.uuid4())
-model_path = os.path.join('{model_output_dir}', 'style_model_' + model_id + '.pth')
-torch.save({{'model_id': model_id, 'trained_on': '{successful_samples} samples'}}, model_path)
-print('Style encoder training completed. Model saved to: ' + model_path)
-print('Model ID: ' + model_id)"""
-                cmd = ["python", "-c", training_script]
+                # DiffusionPen training command with user's custom samples
+                # Using batch_size=5 to process all samples at once (not just 2)
+                cmd = [
+                    "python", style_encoder_script,
+                    "--dataset", custom_dataset_dir,  # Use our processed user samples
+                    "--batch_size", "5",  # Use all 5 samples in batch for better training
+                    "--epochs", "10",  # Enough epochs for style adaptation
+                    "--device", device,
+                    "--save_path", model_output_dir,
+                    "--mode", "mixed",  # Use mixed mode for DiffusionPen
+                    "--pretrained", "1",  # Use pretrained models if available
+                    # Removed --learning_rate as it's not a valid argument for this script
+                ]
                 
                 print(f"Executing DiffusionPen training command:")
                 print(f"  {' '.join(cmd)}")
