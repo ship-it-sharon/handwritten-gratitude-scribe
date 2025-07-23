@@ -436,14 +436,55 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
     }
   };
 
+  const compressImage = (dataUrl: string, maxSize: number = 800): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = document.createElement('img');
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d')!;
+        
+        // Calculate new dimensions
+        let { width, height } = img;
+        if (width > height) {
+          if (width > maxSize) {
+            height = (height * maxSize) / width;
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = (width * maxSize) / height;
+            height = maxSize;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        resolve(compressedDataUrl);
+      };
+      img.src = dataUrl;
+    });
+  };
+
   const handleImageCapture = async (imageData: string) => {
     console.log('🎯 handleImageCapture called with image data length:', imageData.length);
     console.log('🎯 Current sample index:', currentSample);
     console.log('🎯 User authenticated:', !!user);
     
+    // Compress image if it's too large
+    let finalImageData = imageData;
+    if (imageData.length > 1000000) { // If larger than 1MB
+      console.log('🗜️ Compressing large image...');
+      finalImageData = await compressImage(imageData);
+      console.log('🗜️ Compressed from', imageData.length, 'to', finalImageData.length);
+    }
+    
     // Update the uploaded images map
     const newUploadedImages = new Map(uploadedImages);
-    newUploadedImages.set(currentSample, imageData);
+    newUploadedImages.set(currentSample, finalImageData);
     setUploadedImages(newUploadedImages);
     
     // Save this individual sample to database immediately if user is authenticated
@@ -455,6 +496,7 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
       });
       
       try {
+        console.log('🔍 STEP 1: Querying existing model for user:', user.id);
         // Check if user already has a style model
         const { data: existingModel, error: queryError } = await supabase
           .from('user_style_models')
@@ -463,41 +505,58 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
           .maybeSingle();
 
         if (queryError) {
-          console.error('❌ Error querying existing model:', queryError);
+          console.error('❌ STEP 1 FAILED: Error querying existing model:', queryError);
           throw queryError;
         }
+        
+        console.log('✅ STEP 1 SUCCESS: Query result:', existingModel ? { id: existingModel.id, existing_samples: existingModel.sample_images } : 'No existing model');
 
         // Get current samples from database and merge with new one
         let currentSamples: { [key: number]: string } = {};
+        
+        console.log('🔍 STEP 2: Processing existing samples...');
         if (existingModel?.sample_images && typeof existingModel.sample_images === 'object') {
           // Handle both array and object formats for backwards compatibility
           if (Array.isArray(existingModel.sample_images)) {
+            console.log('📄 Converting array format to object format');
             // Convert array to object, filtering out nulls
             existingModel.sample_images.forEach((img: any, index: number) => {
               if (img && typeof img === 'string') {
                 currentSamples[index] = img;
+                console.log(`📄 Kept sample at index ${index}`);
+              } else {
+                console.log(`📄 Skipped null/invalid sample at index ${index}`);
               }
             });
           } else {
+            console.log('📄 Processing object format');
             // Already an object - convert keys to numbers and ensure values are strings
             Object.entries(existingModel.sample_images).forEach(([key, value]) => {
               const numKey = parseInt(key);
               if (!isNaN(numKey) && value && typeof value === 'string') {
                 currentSamples[numKey] = value;
+                console.log(`📄 Kept sample at index ${numKey}`);
+              } else {
+                console.log(`📄 Skipped invalid sample at key ${key}`);
               }
             });
           }
+        } else {
+          console.log('📄 No existing samples found');
         }
 
         // Add the new sample at the correct index
+        console.log('🔍 STEP 3: Adding new sample...');
         console.log('📝 Adding sample at index:', currentSample);
+        console.log('📝 Sample data length:', finalImageData.length);
         console.log('📝 Current samples before adding:', Object.keys(currentSamples));
-        currentSamples[currentSample] = imageData;
+        currentSamples[currentSample] = finalImageData;
         console.log('📝 Current samples after adding:', Object.keys(currentSamples));
         
         let result;
         if (existingModel) {
-          console.log('🔄 Updating existing model with individual sample...');
+          console.log('🔍 STEP 4: Updating existing model...');
+          console.log('📝 Model ID to update:', existingModel.id);
           result = await supabase
             .from('user_style_models')
             .update({
@@ -508,44 +567,51 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
             })
             .eq('user_id', user.id);
         } else {
-          console.log('➕ Creating new model with first sample...');
+          console.log('🔍 STEP 4: Creating new model...');
+          const newModelId = `user_${user.id}_${Date.now()}`;
+          console.log('📝 New model ID:', newModelId);
           result = await supabase
             .from('user_style_models')
             .insert({
               user_id: user.id,
-              model_id: `user_${user.id}_${Date.now()}`,
+              model_id: newModelId,
               sample_images: currentSamples,
               training_status: 'pending'
             });
         }
         
-        console.log('📤 Database operation result:', result);
+        console.log('🔍 STEP 5: Database operation result:', result);
         
         if (result.error) {
-          console.error('❌ Database save error:', result.error);
+          console.error('❌ STEP 5 FAILED: Database save error:', result.error);
           throw result.error;
         }
         
-        console.log('✅ Sample saved to database successfully!');
+        console.log('✅ STEP 5 SUCCESS: Sample saved to database successfully!');
         
         // Verify the save by querying back
+        console.log('🔍 STEP 6: Verifying save...');
         const { data: verifyData, error: verifyError } = await supabase
           .from('user_style_models')
           .select('*')
           .eq('user_id', user.id)
           .maybeSingle();
           
-        console.log('🔍 Verification query result:', { 
-          data: verifyData ? { 
-            id: verifyData.id,
-            sampleImages: verifyData.sample_images,
-            samplesCount: verifyData.sample_images ? Object.keys(verifyData.sample_images).length : 0
-          } : null, 
-          error: verifyError 
-        });
+        if (verifyError) {
+          console.error('❌ STEP 6 FAILED: Verification error:', verifyError);
+        } else {
+          console.log('✅ STEP 6 SUCCESS: Verification query result:', { 
+            data: verifyData ? { 
+              id: verifyData.id,
+              sampleImages: verifyData.sample_images,
+              samplesCount: verifyData.sample_images ? Object.keys(verifyData.sample_images).length : 0
+            } : null
+          });
+        }
         
       } catch (error) {
-        console.error('❌ Critical error saving sample:', error);
+        console.error('❌ CRITICAL ERROR in handleImageCapture:', error);
+        console.error('❌ Error stack:', error.stack);
         toast.error('Failed to save sample to database');
       }
     } else {
