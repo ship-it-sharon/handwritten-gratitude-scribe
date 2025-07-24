@@ -59,7 +59,29 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Follow ChatGPT's recommendation: only pass user_id, let Modal fetch embedding
+    // Fetch user's embedding URL from database if user_id is provided
+    let modelUrl = null;
+    if (body.user_id) {
+      console.log('🔍 Fetching embedding URL for user:', body.user_id);
+      
+      const { data: modelData, error: modelError } = await supabase
+        .from('user_style_models')
+        .select('embedding_storage_url, training_status')
+        .eq('user_id', body.user_id)
+        .eq('training_status', 'completed')
+        .maybeSingle();
+
+      if (modelError) {
+        console.error('❌ Error fetching model data:', modelError);
+      } else if (modelData?.embedding_storage_url) {
+        modelUrl = modelData.embedding_storage_url;
+        console.log('✅ Found embedding URL:', modelUrl);
+      } else {
+        console.log('⚠️ No completed model found for user, will use samples fallback');
+      }
+    }
+    
+    // Follow ChatGPT's recommendation: pass user_id and model_url to Modal
     const maxRetries = 1
     const timeoutMs = 30000
     
@@ -74,7 +96,8 @@ serve(async (req) => {
         
         const requestPayload = {
           text: body.text,
-          user_id: body.user_id, // Let Modal fetch the embedding using user_id
+          user_id: body.user_id,
+          model_url: modelUrl, // Pass the embedding URL from Supabase Storage
           styleCharacteristics: body.styleCharacteristics || {},
           // Include samples as backup in case no trained model exists
           samples: samples.length > 0 ? samples.slice(0, 3) : []
@@ -83,6 +106,7 @@ serve(async (req) => {
         console.log('Making POST request to Modal API...')
         console.log('Request payload:', JSON.stringify({
           ...requestPayload,
+          model_url: modelUrl ? 'URL provided' : 'none',
           samples: requestPayload.samples ? `[${requestPayload.samples.length} samples]` : 'none'
         }))
         
