@@ -142,31 +142,44 @@ serve(async (req) => {
       );
     }
 
-    console.log('Training status updated, starting background training process...');
+    console.log('Training status updated, starting synchronous training process...');
 
-    // Start the actual training process in the background
-    const trainingPromise = startTrainingProcess(samples, user_id, model_id, supabase);
-    
-    // Use EdgeRuntime.waitUntil to ensure the training continues even after response is sent
-    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
-      EdgeRuntime.waitUntil(trainingPromise);
-    } else {
-      // Fallback for environments without EdgeRuntime
-      trainingPromise.catch(error => {
-        console.error('Background training failed:', error);
-      });
+    // Run the training process synchronously and wait for completion
+    try {
+      const trainingResult = await startTrainingProcess(samples, user_id, model_id, supabase);
+      
+      if (trainingResult.success) {
+        return new Response(
+          JSON.stringify({ 
+            message: 'Training completed successfully',
+            model_id: model_id,
+            status: 'completed',
+            embedding_url: trainingResult.embeddingUrl
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        return new Response(
+          JSON.stringify({ 
+            error: 'Training failed',
+            model_id: model_id,
+            status: 'failed'
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } catch (trainingError) {
+      console.error('Training process failed:', trainingError);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Training failed',
+          details: trainingError.message,
+          model_id: model_id,
+          status: 'failed'
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-
-    // Return immediate response
-    return new Response(
-      JSON.stringify({ 
-        message: 'Training started successfully',
-        model_id: model_id,
-        status: 'training',
-        estimated_time: '10-15 minutes'
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
 
   } catch (error) {
     console.error('Error in train-handwriting function:', error);
@@ -205,7 +218,7 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(120000) // 2 minute timeout for training
+      signal: AbortSignal.timeout(300000) // 5 minute timeout for training (increased from 2 minutes)
     });
 
     console.log('Modal API response status:', response.status);
