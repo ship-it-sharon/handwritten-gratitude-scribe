@@ -66,20 +66,32 @@ serve(async (req) => {
       
       const { data: modelData, error: modelError } = await supabase
         .from('user_style_models')
-        .select('embedding_storage_url, training_status')
+        .select('embedding_storage_url, training_status, model_id, created_at')
         .eq('user_id', body.user_id)
         .eq('training_status', 'completed')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
+        console.log('📋 Query results:', {
+          data: modelData,
+          error: modelError,
+          user_id: body.user_id
+        });
+
         if (modelError) {
           console.error('❌ Error fetching model data:', modelError);
         } else if (modelData?.embedding_storage_url) {
           modelUrl = modelData.embedding_storage_url;
           console.log('✅ Found Modal embedding storage path:', modelUrl);
+          console.log('📊 Model details:', {
+            model_id: modelData.model_id,
+            created_at: modelData.created_at,
+            training_status: modelData.training_status
+          });
         } else {
           console.log('⚠️ No embedding storage URL found for model, will use samples fallback');
+          console.log('🔍 Model data received:', modelData);
         }
     }
     
