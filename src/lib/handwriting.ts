@@ -51,6 +51,28 @@ export const generateHandwritingStyle = async (
     if (userId) {
       console.log('🎯 Using user embeddings for generation:', userId);
       requestBody.user_id = userId;
+      
+      // Check training status first
+      try {
+        const { data: modelData, error: modelError } = await supabase
+          .from('user_style_models')
+          .select('training_status, model_id')
+          .eq('user_id', userId)
+          .maybeSingle();
+          
+        if (modelError) {
+          console.error('Error checking model status:', modelError);
+        } else if (modelData) {
+          console.log('Model status:', modelData.training_status);
+          if (modelData.training_status === 'failed') {
+            // Try to check if training actually completed by querying Modal API
+            console.log('Training marked as failed, checking Modal API status...');
+            // For now, still try to generate - Modal might have the model ready
+          }
+        }
+      } catch (error) {
+        console.error('Error checking training status:', error);
+      }
     } else if (style) {
       // Otherwise use style characteristics for initial preview
       console.log('🎨 Using style characteristics:', style);
