@@ -101,23 +101,8 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
       
       console.log(`🔄 Converting ${samples.length} samples to base64, got ${base64Samples.length} strings`);
       
-      // If we have a user ID, first check if we need to train a model
-      if (userId && base64Samples.length > 0) {
-        console.log('🚀 Checking training status and triggering training if needed...');
-        
-        const { data: trainingData, error: trainingError } = await supabase.functions.invoke('train-handwriting', {
-          body: {
-            samples: base64Samples.slice(0, 5),
-            user_id: userId
-          }
-        });
-        
-        console.log('🚀 Training function response:', { trainingData, trainingError });
-        
-        if (trainingError) {
-          console.error('❌ Training error:', trainingError);
-        }
-      }
+      // Skip duplicate training call - training should be handled in analyzeStyle()
+      console.log('🎨 Proceeding directly to generation...');
       
       console.log('📤 About to call generateHandwritingStyle - this should call the generate-handwriting edge function!');
       
