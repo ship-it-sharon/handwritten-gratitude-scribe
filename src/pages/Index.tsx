@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PenTool, Heart, Send, Sparkles, ChevronRight, LogOut, RotateCcw } from "lucide-react";
 import { HandwritingCapture } from "@/components/HandwritingCapture";
+import { HandwritingPreview } from "@/components/HandwritingPreview";
 import { NoteGenerator } from "@/components/NoteGenerator";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { TrainingProgressDisplay } from "@/components/TrainingProgressDisplay";
@@ -18,6 +19,7 @@ const Index = () => {
   const [currentStep, setCurrentStep] = useState<'welcome' | 'capture' | 'preview-samples' | 'processing' | 'generate' | 'preview'>('welcome');
   const [handwritingSamples, setHandwritingSamples] = useState<(string | HTMLCanvasElement)[]>([]);
   const [userStyleModel, setUserStyleModel] = useState<any>(null);
+  const [previewText, setPreviewText] = useState("Best wishes: sincerely yours (always & forever)");
 
   useEffect(() => {
     if (!loading && !user) {
@@ -188,9 +190,9 @@ const Index = () => {
         return <SamplePreviewScreen 
           samples={handwritingSamples} 
           onContinue={() => {
-            startEmbeddingExtraction();
-            setCurrentStep('processing');
-          }} 
+            // Move directly to preview step with HandwritingPreview component
+            setCurrentStep('preview');
+          }}
           onRetake={() => setCurrentStep('capture')} 
         />;
       case 'processing':
@@ -202,7 +204,33 @@ const Index = () => {
       case 'generate':
         return <NoteGenerator onNext={() => setCurrentStep('preview')} handwritingSamples={handwritingSamples} />;
       case 'preview':
-        return <PreviewScreen onBack={() => setCurrentStep('generate')} />;
+        return (
+          <div className="min-h-screen flex items-center justify-center p-4">
+            <div className="w-full max-w-4xl space-y-6">
+              <div className="text-center">
+                <h1 className="text-3xl font-elegant text-ink mb-2">Generate Your Handwriting Preview</h1>
+                <p className="text-muted-foreground">
+                  Click "Generate Preview" to see your text in your personalized handwriting style
+                </p>
+              </div>
+              
+              <HandwritingPreview 
+                text={previewText}
+                samples={handwritingSamples}
+                onStyleChange={(style) => {
+                  console.log('Style updated:', style);
+                }}
+              />
+              
+              <div className="flex justify-center">
+                <Button variant="outline" onClick={() => setCurrentStep('preview-samples')}>
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Back to Samples
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
       default:
         return (
           <WelcomeScreen 
