@@ -97,11 +97,7 @@ serve(async (req) => {
       );
     }
 
-    // If model exists but without embedding storage URL, force re-training
-    if (existingModel?.training_status === 'completed' && !existingModel.embedding_storage_url) {
-      console.log('Model trained but missing embedding storage, forcing re-training');
-    }
-
+    // Check training status and decide whether to proceed
     if (existingModel?.training_status === 'training') {
       console.log('Model already training, returning training status');
       return new Response(
@@ -112,6 +108,12 @@ serve(async (req) => {
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // If model exists but without embedding storage URL, force re-training
+    if (existingModel?.training_status === 'completed' && !existingModel.embedding_storage_url) {
+      console.log('Model trained but missing embedding storage, forcing re-training');
+      // Continue to re-training process below
     }
 
     // Generate a model ID for this training session
