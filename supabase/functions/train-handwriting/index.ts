@@ -84,7 +84,14 @@ serve(async (req) => {
       );
     }
 
-    // If model is already trained with embeddings stored, return early
+    console.log('Existing model check:', {
+      exists: !!existingModel,
+      training_status: existingModel?.training_status,
+      has_embedding_url: !!existingModel?.embedding_storage_url,
+      model_id: existingModel?.model_id
+    });
+
+    // If model is already trained AND has embedding storage, return early
     if (existingModel?.training_status === 'completed' && existingModel.embedding_storage_url) {
       console.log('Model already trained with embeddings stored, skipping training');
       return new Response(
@@ -97,7 +104,7 @@ serve(async (req) => {
       );
     }
 
-    // Check training status and decide whether to proceed
+    // If model is currently training, return training status
     if (existingModel?.training_status === 'training') {
       console.log('Model already training, returning training status');
       return new Response(
@@ -110,11 +117,13 @@ serve(async (req) => {
       );
     }
 
-    // If model exists but without embedding storage URL, force re-training
+    // Force re-training if model exists but missing embedding storage
     if (existingModel?.training_status === 'completed' && !existingModel.embedding_storage_url) {
-      console.log('Model trained but missing embedding storage, forcing re-training');
-      // Continue to re-training process below
+      console.log('Model completed but missing embedding storage, forcing re-training');
+      // Continue to training process below
     }
+
+    console.log('Proceeding with training - no valid existing model found');
 
     // Generate a model ID for this training session
     const model_id = `user_${user_id}_${Date.now()}`;
