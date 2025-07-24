@@ -1,3 +1,5 @@
+import { supabase } from "@/integrations/supabase/client";
+
 export interface HandwritingStyle {
   slant: number; // -10 to 10 (negative = left slant, positive = right slant)
   spacing: number; // 0.8 to 1.5 (letter spacing multiplier)
@@ -5,6 +7,65 @@ export interface HandwritingStyle {
   baseline: 'straight' | 'slightly_wavy' | 'irregular';
   pressure: number; // 0.5 to 1.5 (stroke pressure variation)
 }
+
+// Create a fingerprint for samples to detect changes
+export const createSampleFingerprint = (samples: (string | HTMLCanvasElement)[]): string => {
+  const sampleHashes = samples.map(sample => {
+    if (typeof sample === 'string') {
+      // For base64 strings, use first and last 50 characters as fingerprint
+      return sample.length < 100 ? sample : sample.substring(0, 50) + sample.substring(sample.length - 50);
+    } else if (sample instanceof HTMLCanvasElement) {
+      // For canvas, convert to base64 and then fingerprint
+      const base64 = sample.toDataURL('image/png');
+      return base64.length < 100 ? base64 : base64.substring(0, 50) + base64.substring(base64.length - 50);
+    }
+    return '';
+  });
+  
+  // Sort to ensure consistent fingerprint regardless of order
+  return sampleHashes.sort().join('|');
+};
+
+// Check if training is needed based on samples
+export const checkTrainingStatus = async (userId: string, samples: (string | HTMLCanvasElement)[]) => {
+  const currentFingerprint = createSampleFingerprint(samples);
+  
+  // Check if we have existing embeddings
+  const { data: modelData, error } = await supabase
+    .from('user_style_models')
+    .select('training_status, model_id, sample_fingerprint')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+    
+  if (error) {
+    console.error('Error checking training status:', error);
+    return { needsTraining: true, reason: 'error_checking_status' };
+  }
+  
+  if (!modelData) {
+    return { needsTraining: true, reason: 'no_existing_model' };
+  }
+  
+  if (modelData.training_status === 'failed') {
+    return { needsTraining: true, reason: 'previous_training_failed' };
+  }
+  
+  if (modelData.training_status === 'pending' || modelData.training_status === 'training') {
+    return { needsTraining: false, reason: 'training_in_progress', modelId: modelData.model_id };
+  }
+  
+  if (modelData.training_status === 'completed') {
+    // Check if samples have changed
+    if (modelData.sample_fingerprint !== currentFingerprint) {
+      return { needsTraining: true, reason: 'samples_changed' };
+    }
+    return { needsTraining: false, reason: 'model_ready', modelId: modelData.model_id };
+  }
+  
+  return { needsTraining: true, reason: 'unknown_status' };
+};
 
 export const analyzeHandwritingSamples = (samples: (string | HTMLCanvasElement)[]): HandwritingStyle => {
   // This is a simplified analysis - in a real implementation, this would use

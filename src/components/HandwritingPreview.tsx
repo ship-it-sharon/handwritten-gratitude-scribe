@@ -3,8 +3,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Wand2, Eye, Settings, Sparkles, RotateCcw } from "lucide-react";
-import { analyzeHandwritingSamples, generateHandwritingStyle, type HandwritingStyle } from "@/lib/handwriting";
+import { Wand2, Eye, Sparkles, RotateCcw } from "lucide-react";
+import { 
+  analyzeHandwritingSamples, 
+  generateHandwritingStyle, 
+  checkTrainingStatus,
+  type HandwritingStyle 
+} from "@/lib/handwriting";
 import { supabase } from "@/integrations/supabase/client";
 
 interface HandwritingPreviewProps {
@@ -16,11 +21,10 @@ interface HandwritingPreviewProps {
 export const HandwritingPreview = ({ text, samples, onStyleChange }: HandwritingPreviewProps) => {
   const [handwritingStyle, setHandwritingStyle] = useState<HandwritingStyle | null>(null);
   const [generatedSvg, setGeneratedSvg] = useState<string>("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
-  const [trainingStatus, setTrainingStatus] = useState<any>(null);
-  const [showGenerateAnother, setShowGenerateAnother] = useState(false);
+  const [processingStage, setProcessingStage] = useState<string>("");
+  const [estimatedTime, setEstimatedTime] = useState<string>("");
 
   // Get current user ID
   useEffect(() => {
@@ -29,63 +33,16 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
     });
   }, []);
 
-  const analyzeStyle = async () => {
-    setIsAnalyzing(true);
-    console.log('🔍 Starting handwriting analysis with samples:', samples.length);
-    try {
-      // First, trigger the actual training process if we have a user ID
-      if (userId && samples.length > 0) {
-        console.log('🚀 Starting backend training process...');
-        
-        // Convert samples to base64 for training
-        const base64Samples: string[] = [];
-        for (const sample of samples) {
-          if (typeof sample === 'string') {
-            base64Samples.push(sample);
-          } else if (sample instanceof HTMLCanvasElement) {
-            const base64 = sample.toDataURL('image/png');
-            base64Samples.push(base64);
-          }
-        }
-        
-        // Call the training function
-        const { data: trainingData, error: trainingError } = await supabase.functions.invoke('train-handwriting', {
-          body: {
-            samples: base64Samples.slice(0, 5),
-            user_id: userId
-          }
-        });
-        
-        console.log('🚀 Training function response:', { trainingData, trainingError });
-        
-        if (trainingError) {
-          console.error('❌ Training error:', trainingError);
-        }
-      }
-      
-      const style = analyzeHandwritingSamples(samples);
-      console.log('📊 Analyzed style:', style);
-      setHandwritingStyle(style);
-      onStyleChange?.(style);
-      
-      // Auto-generate preview with analyzed style
-      console.log('🎨 Auto-generating preview with analyzed style...');
-      await generatePreview(style);
-      console.log('✅ Preview generation completed');
-    } catch (error) {
-      console.error('❌ Error analyzing handwriting:', error);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  const generatePreview = async (style?: HandwritingStyle) => {
-    if (!style && !handwritingStyle) {
-      await analyzeStyle();
+  const generatePreview = async () => {
+    if (!text || samples.length === 0) {
+      console.warn('No text or samples provided for generation');
       return;
     }
 
     setIsGenerating(true);
+    setGeneratedSvg("");
+    setProcessingStage("Checking your handwriting samples...");
+
     try {
       // Convert all samples to base64 strings
       const base64Samples: string[] = [];
@@ -93,63 +50,108 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
         if (typeof sample === 'string') {
           base64Samples.push(sample);
         } else if (sample instanceof HTMLCanvasElement) {
-          // Convert canvas to base64
           const base64 = sample.toDataURL('image/png');
           base64Samples.push(base64);
         }
       }
-      
-      console.log(`🔄 Converting ${samples.length} samples to base64, got ${base64Samples.length} strings`);
-      
-      // Skip duplicate training call - training should be handled in analyzeStyle()
-      console.log('🎨 Proceeding directly to generation...');
-      
-      console.log('📤 About to call generateHandwritingStyle - this should call the generate-handwriting edge function!');
-      
-      console.log('📤 Calling generate-handwriting with text:', text.substring(0, 50) + '...');
-      console.log('📤 About to call generateHandwritingStyle with:', {
-        textLength: text.length,
-        styleExists: !!(style || handwritingStyle),
-        samplesCount: base64Samples.length,
-        userId: userId || 'none'
-      });
-      
+
+      console.log(`🔄 Processing ${samples.length} samples for generation`);
+
+      if (userId) {
+        // Smart training logic: check if we need to train or retrain
+        console.log('🧠 Checking if training is needed...');
+        setProcessingStage("Analyzing your handwriting style...");
+        
+        const trainingCheck = await checkTrainingStatus(userId, samples);
+        console.log('📊 Training check result:', trainingCheck);
+
+        if (trainingCheck.needsTraining) {
+          console.log(`🚀 Training needed: ${trainingCheck.reason}`);
+          setProcessingStage("Creating your personalized handwriting model...");
+          setEstimatedTime("This may take 2-5 minutes");
+
+          // Call training endpoint
+          const { data: trainingData, error: trainingError } = await supabase.functions.invoke('train-handwriting', {
+            body: {
+              samples: base64Samples.slice(0, 5),
+              user_id: userId
+            }
+          });
+
+          console.log('🚀 Training function response:', { trainingData, trainingError });
+
+          if (trainingError) {
+            console.error('❌ Training error:', trainingError);
+            throw new Error(`Training failed: ${trainingError.message}`);
+          }
+
+          // If training just started, wait a bit then check status
+          if (trainingData?.status === 'training') {
+            setProcessingStage("Training in progress...");
+            setEstimatedTime(trainingData.estimated_time || "2-5 minutes");
+            
+            // For now, continue to generation which will handle training status
+            console.log('📈 Training started, proceeding to generation...');
+          }
+        } else {
+          console.log(`✅ Training not needed: ${trainingCheck.reason}`);
+          if (trainingCheck.modelId) {
+            console.log(`🎯 Using existing model: ${trainingCheck.modelId}`);
+          }
+        }
+      }
+
+      // Analyze style for fallback/enhancement
+      setProcessingStage("Finalizing style characteristics...");
+      const style = analyzeHandwritingSamples(samples);
+      console.log('📊 Analyzed style:', style);
+      setHandwritingStyle(style);
+      onStyleChange?.(style);
+
+      // Generate the handwriting
+      setProcessingStage("Generating your handwritten text...");
+      console.log('🎨 Generating handwriting with analyzed style...');
+
       const response = await generateHandwritingStyle(
         text, 
-        style || handwritingStyle!, 
+        style, 
         base64Samples,
-        userId || undefined // Pass user ID for authenticated users
+        userId || undefined
       );
-      
-      console.log('🎭 generateHandwritingStyle completed with response type:', typeof response);
-      
-      // Handle different response types
+
+      console.log('🎭 Generation response type:', typeof response);
+
       if (!response) {
-        console.warn('⚠️ No response from generateHandwritingStyle');
-        return;
+        throw new Error('No response from generation service');
       }
-      
-      console.log('📥 Generate response:', response, 'Type:', typeof response);
-      
+
+      // Handle different response types
       if (typeof response === 'object' && 'status' in response) {
         const statusResponse = response as any;
         if (statusResponse.status === 'training') {
-          // Show training status instead of SVG
-          console.log('📊 Model still training, showing status:', statusResponse);
-          setGeneratedSvg(''); // Clear any existing SVG
-          setTrainingStatus(statusResponse);
+          // Model still training
+          setProcessingStage("Your handwriting model is still being created...");
+          setEstimatedTime(statusResponse.estimated_time || "2-5 minutes");
+          setGeneratedSvg(''); // Keep empty to show training state
+          return;
         }
       } else if (typeof response === 'string') {
-        // Regular SVG response
+        // Successful SVG generation
         console.log('✅ Received SVG response, length:', response.length);
         setGeneratedSvg(response);
-        setTrainingStatus(null);
-        setShowGenerateAnother(true);
+        setProcessingStage("");
+        setEstimatedTime("");
       } else {
         console.warn('⚠️ Unexpected response format:', response);
+        throw new Error('Unexpected response format from generation service');
       }
+
     } catch (error) {
       console.error('❌ Error generating handwriting preview:', error);
+      setProcessingStage("");
+      setEstimatedTime("");
+      setGeneratedSvg("");
+      // You could add error state UI here
     } finally {
       setIsGenerating(false);
     }
@@ -167,23 +169,13 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
         
         <div className="flex gap-2">
           <Button
-            variant="outline"
-            size="sm"
-            onClick={analyzeStyle}
-            disabled={isAnalyzing || samples.length === 0}
-          >
-            <Settings className="w-4 h-4" />
-            {isAnalyzing ? 'Analyzing...' : 'Analyze Style'}
-          </Button>
-          
-          <Button
             variant="elegant"
             size="sm"
-            onClick={() => generatePreview()}
-            disabled={isGenerating || !text}
+            onClick={generatePreview}
+            disabled={isGenerating || !text || samples.length === 0}
           >
             <Wand2 className="w-4 h-4" />
-            {isGenerating ? 'Generating...' : 'Generate'}
+            {isGenerating ? 'Generating...' : 'Generate Preview'}
           </Button>
         </div>
       </div>
@@ -218,8 +210,8 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
         </div>
         
         <Card className="p-6 bg-paper min-h-40 flex items-center justify-center">
-          {trainingStatus ? (
-            // Training in progress state
+          {isGenerating ? (
+            // Processing state
             <div className="text-center space-y-4 max-w-md">
               <div className="relative">
                 <div className="w-16 h-16 mx-auto mb-4 relative">
@@ -229,30 +221,19 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
               </div>
               
               <div className="space-y-2">
-                <h4 className="font-medium text-ink text-lg">Analyzing Your Handwriting Style</h4>
-                <p className="text-muted-foreground">
-                  Our AI is extracting style characteristics from your samples to create personalized handwriting
-                </p>
-                <div className="text-sm text-primary font-medium">
-                  Estimated time: {trainingStatus.estimated_time || "2-5 minutes"}
-                </div>
-                {trainingStatus.note && (
-                  <p className="text-xs text-muted-foreground italic mt-3">
-                    {trainingStatus.note}
+                <h4 className="font-medium text-ink text-lg">
+                  {processingStage || "Processing..."}
+                </h4>
+                {estimatedTime && (
+                  <div className="text-sm text-primary font-medium">
+                    Estimated time: {estimatedTime}
+                  </div>
+                )}
+                {processingStage.includes("Creating") && (
+                  <p className="text-muted-foreground text-sm">
+                    Our AI is learning your unique handwriting style to create personalized results
                   </p>
                 )}
-              </div>
-              
-              <div className="pt-4">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => generatePreview()}
-                  disabled={isGenerating}
-                >
-                  <RotateCcw className="w-4 h-4 mr-2" />
-                  {isGenerating ? 'Checking...' : 'Check Progress'}
-                </Button>
               </div>
             </div>
           ) : generatedSvg ? (
@@ -264,7 +245,7 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
             <div className="text-center space-y-3">
               <Sparkles className="w-8 h-8 mx-auto text-muted-foreground" />
               <p className="text-muted-foreground">
-                Click "Generate" to see your handwritten text
+                Click "Generate Preview" to see your handwritten text
               </p>
             </div>
           ) : (
@@ -275,18 +256,18 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
         </Card>
       </div>
 
-      {generatedSvg && !trainingStatus && (
+      {generatedSvg && !isGenerating && (
         <div className="space-y-4">
           <div className="flex gap-2 justify-center">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => generatePreview()}
+              onClick={generatePreview}
               disabled={isGenerating}
               className="gap-2"
             >
               <RotateCcw className="w-4 h-4" />
-              {isGenerating ? 'Regenerating...' : 'Generate Another'}
+              Generate Another
             </Button>
           </div>
           
@@ -296,7 +277,7 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
             </p>
             <p className="text-xs text-muted-foreground">
               💡 Love how it looks? Continue to create your thank you note!<br/>
-              🎯 Want it even more accurate? Collect a few more handwriting samples!
+              🎯 Want it even more accurate? Add more handwriting samples!
             </p>
           </div>
         </div>

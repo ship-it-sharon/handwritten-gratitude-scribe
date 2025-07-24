@@ -12,6 +12,17 @@ interface TrainingRequest {
   user_id: string;
 }
 
+// Create fingerprint from samples for change detection
+function createSampleFingerprint(samples: string[]): string {
+  const sampleHashes = samples.map(sample => {
+    // For base64 strings, use first and last 50 characters as fingerprint
+    return sample.length < 100 ? sample : sample.substring(0, 50) + sample.substring(sample.length - 50);
+  });
+  
+  // Sort to ensure consistent fingerprint regardless of order
+  return sampleHashes.sort().join('|');
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -54,6 +65,9 @@ serve(async (req) => {
 
     console.log('Training handwriting model for user:', user_id);
     console.log('Using samples:', samples.length);
+    
+    // Create fingerprint from current samples
+    const currentFingerprint = createSampleFingerprint(samples);
 
     // Check if user already has a model and if it's already trained or training
     const { data: existingModel, error: fetchError } = await supabase
@@ -102,12 +116,16 @@ serve(async (req) => {
     // Update database to mark training as started
     const { error: updateError } = await supabase
       .from('user_style_models')
-      .update({
+      .upsert({
+        user_id: user_id,
         training_status: 'training',
         training_started_at: new Date().toISOString(),
-        model_id: model_id
-      })
-      .eq('user_id', user_id);
+        model_id: model_id,
+        sample_fingerprint: currentFingerprint,
+        sample_images: samples
+      }, {
+        onConflict: 'user_id'
+      });
 
     if (updateError) {
       console.error('Error updating training status:', updateError);

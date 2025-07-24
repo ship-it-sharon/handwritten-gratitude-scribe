@@ -46,6 +46,7 @@ export type Database = {
           created_at: string
           id: string
           model_id: string
+          sample_fingerprint: string | null
           sample_images: Json | null
           style_model_path: string | null
           training_completed_at: string | null
@@ -58,6 +59,7 @@ export type Database = {
           created_at?: string
           id?: string
           model_id: string
+          sample_fingerprint?: string | null
           sample_images?: Json | null
           style_model_path?: string | null
           training_completed_at?: string | null
@@ -70,6 +72,7 @@ export type Database = {
           created_at?: string
           id?: string
           model_id?: string
+          sample_fingerprint?: string | null
           sample_images?: Json | null
           style_model_path?: string | null
           training_completed_at?: string | null
