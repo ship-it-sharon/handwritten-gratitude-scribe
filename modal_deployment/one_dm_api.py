@@ -204,8 +204,12 @@ def fastapi_app():
             trained_model_id = await train_style_encoder(samples, model, user_id)
             
             if trained_model_id:
+                # Create the model URL pointing to the JSON file that was created
+                model_url = f"https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/download_model/{trained_model_id}"
+                
                 return JSONResponse({
                     "model_id": trained_model_id,
+                    "model_url": model_url,  # Add the download URL
                     "status": "training_complete",
                     "message": f"Style encoder trained successfully with {len(samples)} samples"
                 })
@@ -274,6 +278,36 @@ def fastapi_app():
             return JSONResponse({
                 "error": f"Failed to generate handwriting: {str(e)}"
             }, status_code=500)
+    
+    
+    @app.get("/download_model/{model_id}")
+    async def download_model_endpoint(model_id: str):
+        """Download the trained model file"""
+        try:
+            import os
+            from fastapi.responses import FileResponse
+            
+            # Look for the model file in persistent storage
+            model_file_path = f"/tmp/persistent_styles/{model_id}.json"
+            
+            if os.path.exists(model_file_path):
+                return FileResponse(
+                    model_file_path, 
+                    media_type='application/json',
+                    filename=f"{model_id}.json"
+                )
+            else:
+                return JSONResponse(
+                    {"error": f"Model file not found: {model_id}"}, 
+                    status_code=404
+                )
+                
+        except Exception as e:
+            print(f"Error downloading model {model_id}: {str(e)}")
+            return JSONResponse(
+                {"error": f"Failed to download model: {str(e)}"}, 
+                status_code=500
+            )
     
     @app.get("/health")
     async def health_check():

@@ -228,34 +228,67 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
     const result = await response.json();
     console.log('Modal API training result:', result);
 
-    // TEMPORARY: Handle Modal's current response format until Modal is updated
-    // Once Modal provides model_url for download, we'll switch to Supabase storage
-    let embeddingStorageUrl = null;
+    // Extract the storage path/URL from Modal response and download the model
+    let supabaseStorageUrl = null;
     
-    console.log('📥 Modal training response received:', JSON.stringify(result, null, 2));
-    
-    // For now, construct the Modal path like before until Modal is updated to provide download URL
-    if (result.model_id || result.embedding_id) {
-      const modelRef = result.model_id || result.embedding_id || `user_${userId}_${Date.now()}`;
-      embeddingStorageUrl = `/tmp/persistent_styles/style_emb_${modelRef.replace('user_', '')}.json`;
-      console.log('✅ Constructed Modal embedding storage path:', embeddingStorageUrl);
+    // Modal should return either a model_url or some way to download the trained model
+    if (result.model_url) {
+      console.log('✅ Modal returned model URL:', result.model_url);
+      
+      // Create filename for storage
+      const fileName = `style_emb_${userId}_${Date.now()}.json`;
+      
+      try {
+        // Download the model from Modal
+        console.log('📥 Downloading trained model from Modal...');
+        const modelResponse = await fetch(result.model_url);
+        
+        if (!modelResponse.ok) {
+          throw new Error(`Failed to download model: ${modelResponse.status}`);
+        }
+        
+        const modelData = await modelResponse.arrayBuffer();
+        console.log('✅ Downloaded model data, size:', modelData.byteLength, 'bytes');
+        
+        // Upload to Supabase storage
+        console.log('📤 Uploading model to Supabase storage...');
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('handwriting-embeddings')
+          .upload(fileName, modelData, {
+            contentType: 'application/json',
+            upsert: true
+          });
+        
+        if (uploadError) {
+          console.error('❌ Failed to upload to Supabase storage:', uploadError);
+          throw uploadError;
+        }
+        
+        console.log('✅ Uploaded to Supabase storage:', uploadData);
+        
+        // Generate public URL
+        supabaseStorageUrl = `${Deno.env.get('SUPABASE_URL')}/storage/v1/object/public/handwriting-embeddings/${fileName}`;
+        console.log('✅ Generated public storage URL:', supabaseStorageUrl);
+        
+      } catch (downloadError) {
+        console.error('❌ Failed to download/upload model:', downloadError);
+        throw downloadError;
+      }
     } else {
-      console.log('⚠️ Could not construct embedding storage path - missing model_id/embedding_id');
+      console.log('⚠️ Modal did not return a model_url for download');
       console.log('Available response fields:', Object.keys(result));
-      // Don't fail - try to construct a path anyway
-      embeddingStorageUrl = `/tmp/persistent_styles/style_emb_${userId}_${Date.now()}.json`;
-      console.log('📝 Using fallback storage path:', embeddingStorageUrl);
+      console.log('Full Modal response:', JSON.stringify(result, null, 2));
+      throw new Error('Modal training completed but no model_url provided for download');
     }
 
-    // Update database with successful training completion and Modal storage path
-    // TODO: Switch to Supabase storage URL once Modal provides download capability
+    // Update database with successful training completion and Supabase storage URL
     const { error: updateError } = await supabase
       .from('user_style_models')
       .update({
         training_status: 'completed',
         training_completed_at: new Date().toISOString(),
         style_model_path: result.model_path || `models/${modelId}`,
-        embedding_storage_url: embeddingStorageUrl, // Temporarily store Modal path
+        embedding_storage_url: supabaseStorageUrl, // Store Supabase public URL instead of Modal path
         sample_fingerprint: createSampleFingerprint(samples)
       })
       .eq('user_id', userId);
@@ -266,7 +299,7 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
     }
 
     console.log('Training completed successfully for user:', userId);
-    return { success: true, modelId, embeddingUrl: embeddingStorageUrl };
+    return { success: true, modelId, embeddingUrl: supabaseStorageUrl };
 
   } catch (error) {
     console.error('Training failed:', error);
