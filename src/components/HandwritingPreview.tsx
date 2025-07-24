@@ -126,7 +126,11 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
       }
 
       // Handle different response types
-      if (typeof response === 'object' && 'status' in response) {
+      if (typeof response === 'object' && 'error' in response) {
+        // Error response from the generation service
+        console.error('❌ Generation error:', response.error);
+        throw new Error(response.error);
+      } else if (typeof response === 'object' && 'status' in response) {
         const statusResponse = response as any;
         if (statusResponse.status === 'training') {
           // Model still training
