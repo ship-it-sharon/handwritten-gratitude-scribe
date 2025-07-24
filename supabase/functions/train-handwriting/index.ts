@@ -219,22 +219,26 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
     const result = await response.json();
     console.log('Modal API training result:', result);
 
-    // Extract embedding data directly from Modal response
+    // Extract embedding data from Modal response - handle different response formats
     let embeddingStorageUrl = null;
     let embeddingData = null;
     
-    // The Modal API returns style characteristics directly in the response
-    if (result.style_characteristics) {
+    // The Modal API returns various fields - extract all the style data we can find
+    if (result.embedding_id || result.style_characteristics || result.model_id) {
       embeddingData = {
         embedding_id: result.embedding_id,
         style_characteristics: result.style_characteristics,
         model_id: result.model_id || modelId,
-        user_id: userId
+        user_id: userId,
+        // Include any other fields that might be relevant
+        style_path: result.style_path,
+        model_path: result.model_path,
+        full_result: result // Store the full result for debugging
       };
-      console.log('✅ Found style characteristics in response:', embeddingData);
+      console.log('✅ Extracted embedding data from Modal response:', embeddingData);
     } else {
-      console.log('⚠️ No style characteristics found in Modal response');
-      console.log('Response keys:', Object.keys(result));
+      console.log('⚠️ No embedding data found in Modal response');
+      console.log('Available response fields:', Object.keys(result));
     }
     
     if (embeddingData) {
