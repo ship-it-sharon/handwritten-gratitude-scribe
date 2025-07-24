@@ -44,6 +44,7 @@ export type Database = {
       user_style_models: {
         Row: {
           created_at: string
+          embedding_storage_url: string | null
           id: string
           model_id: string
           sample_fingerprint: string | null
@@ -57,6 +58,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          embedding_storage_url?: string | null
           id?: string
           model_id: string
           sample_fingerprint?: string | null
@@ -70,6 +72,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          embedding_storage_url?: string | null
           id?: string
           model_id?: string
           sample_fingerprint?: string | null

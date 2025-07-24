@@ -170,7 +170,7 @@ serve(async (req) => {
   }
 });
 
-async function startTrainingProcess(samples: string[], userId: string, modelId: string, supabase: any): Promise<{success: boolean, modelId?: string}> {
+async function startTrainingProcess(samples: string[], userId: string, modelId: string, supabase: any): Promise<{success: boolean, modelId?: string, embeddingUrl?: string}> {
   console.log('=== Starting Training Process ===');
   
   try {
@@ -212,13 +212,46 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
     const result = await response.json();
     console.log('Modal API training result:', result);
 
-    // Update database with successful training completion
+    // Extract embedding data from Modal response
+    let embeddingStorageUrl = null;
+    if (result.embedding_data) {
+      console.log('💾 Saving embedding to Supabase Storage...');
+      
+      // Save embedding to Supabase Storage
+      const embeddingFileName = `${userId}/style_embedding.json`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('handwriting-embeddings')
+        .upload(embeddingFileName, JSON.stringify(result.embedding_data), {
+          contentType: 'application/json',
+          upsert: true // Overwrite if exists
+        });
+
+      if (uploadError) {
+        console.error('❌ Storage upload error:', uploadError);
+        throw new Error(`Failed to save embedding: ${uploadError.message}`);
+      }
+
+      console.log('✅ Embedding saved to storage:', uploadData);
+
+      // Get storage URL
+      const { data: urlData } = supabase.storage
+        .from('handwriting-embeddings')
+        .getPublicUrl(embeddingFileName);
+      
+      embeddingStorageUrl = urlData.publicUrl;
+      console.log('📍 Embedding storage URL:', embeddingStorageUrl);
+    }
+
+    // Update database with successful training completion and storage URL
     const { error: updateError } = await supabase
       .from('user_style_models')
       .update({
         training_status: 'completed',
         training_completed_at: new Date().toISOString(),
-        style_model_path: result.model_path || `models/${modelId}`
+        style_model_path: result.model_path || `models/${modelId}`,
+        embedding_storage_url: embeddingStorageUrl,
+        sample_fingerprint: createSampleFingerprint(samples)
       })
       .eq('user_id', userId);
 
@@ -228,7 +261,7 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
     }
 
     console.log('Training completed successfully for user:', userId);
-    return { success: true, modelId };
+    return { success: true, modelId, embeddingUrl: embeddingStorageUrl };
 
   } catch (error) {
     console.error('Training failed:', error);

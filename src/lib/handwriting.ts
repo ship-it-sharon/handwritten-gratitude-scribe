@@ -33,7 +33,7 @@ export const checkTrainingStatus = async (userId: string, samples: (string | HTM
   // Check if we have existing embeddings
   const { data: modelData, error } = await supabase
     .from('user_style_models')
-    .select('training_status, model_id, sample_fingerprint')
+    .select('training_status, model_id, sample_fingerprint, embedding_storage_url')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -57,11 +57,17 @@ export const checkTrainingStatus = async (userId: string, samples: (string | HTM
   }
   
   if (modelData.training_status === 'completed') {
-    // Check if samples have changed OR if there's no fingerprint (indicates potential desync)
-    if (!modelData.sample_fingerprint || modelData.sample_fingerprint !== currentFingerprint) {
+    // Check if we have both fingerprint AND embedding storage URL
+    const hasFingerprint = !!modelData.sample_fingerprint;
+    const hasEmbeddingStorage = !!modelData.embedding_storage_url;
+    const samplesChanged = modelData.sample_fingerprint !== currentFingerprint;
+    
+    if (!hasFingerprint || !hasEmbeddingStorage || samplesChanged) {
       return { 
         needsTraining: true, 
-        reason: modelData.sample_fingerprint ? 'samples_changed' : 'no_fingerprint_stored_force_retrain'
+        reason: !hasFingerprint ? 'no_fingerprint_stored' : 
+                !hasEmbeddingStorage ? 'no_embedding_storage' :
+                'samples_changed'
       };
     }
     return { needsTraining: false, reason: 'model_ready', modelId: modelData.model_id };

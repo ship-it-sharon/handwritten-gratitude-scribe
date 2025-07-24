@@ -58,12 +58,52 @@ serve(async (req) => {
     );
 
     let trainedModelId = null;
+    let embeddingData = null;
     
-    // Step 1: Use provided model_id if available
+    // Step 1: Use provided model_id and fetch embedding from storage
     if (body.model_id) {
       console.log('=== USING PROVIDED MODEL ID ===');
       trainedModelId = body.model_id;
       console.log('Using trained model:', trainedModelId);
+      
+      // Fetch embedding data from Supabase Storage
+      try {
+        console.log('📥 Fetching embedding data from storage...');
+        
+        // Get model details to find storage URL
+        const { data: modelData, error: modelError } = await supabase
+          .from('user_style_models')
+          .select('embedding_storage_url')
+          .eq('model_id', trainedModelId)
+          .eq('training_status', 'completed')
+          .maybeSingle();
+
+        if (modelError) {
+          console.error('Error fetching model data:', modelError);
+        } else if (modelData?.embedding_storage_url) {
+          // Extract file path from storage URL
+          const url = new URL(modelData.embedding_storage_url);
+          const filePath = url.pathname.split('/storage/v1/object/public/handwriting-embeddings/')[1];
+          
+          if (filePath) {
+            const { data: embeddingBlob, error: downloadError } = await supabase.storage
+              .from('handwriting-embeddings')
+              .download(filePath);
+
+            if (!downloadError && embeddingBlob) {
+              const embeddingText = await embeddingBlob.text();
+              embeddingData = JSON.parse(embeddingText);
+              console.log('✅ Successfully loaded embedding data from storage');
+            } else {
+              console.error('❌ Failed to download embedding:', downloadError);
+            }
+          }
+        } else {
+          console.log('No embedding storage URL found for model');
+        }
+      } catch (storageError) {
+        console.error('❌ Error loading embedding from storage:', storageError);
+      }
     }
     
     // Step 2: Generate handwriting using trained model or fallback
@@ -82,6 +122,7 @@ serve(async (req) => {
         const requestPayload = {
           text: body.text,
           model_id: trainedModelId,
+          embedding_data: embeddingData, // Include the embedding data from storage
           styleCharacteristics: body.styleCharacteristics || {},
           // Always include samples as backup in case model_id fails
           samples: samples.length > 0 ? samples.slice(0, 3) : []
