@@ -8,7 +8,8 @@ const corsHeaders = {
 
 interface HandwritingRequest {
   text: string
-  model_id?: string // Trained model ID for personalized generation
+  user_id?: string // User ID to fetch their trained model
+  model_id?: string // Trained model ID for personalized generation (optional, for backward compatibility)
   styleCharacteristics?: {
     slant?: number
     spacing?: number
@@ -49,6 +50,7 @@ serve(async (req) => {
     const samples = body.samples || [];
     
     console.log(`Generating handwriting for: "${body.text}" with ${samples.length} reference samples`)
+    console.log('User ID provided:', body.user_id || 'none')
     console.log('Model ID provided:', body.model_id || 'none')
 
     // Initialize Supabase client  
@@ -57,58 +59,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    let trainedModelId = null;
-    let embeddingData = null;
-    
-    // Step 1: Use provided model_id and fetch embedding from storage
-    if (body.model_id) {
-      console.log('=== USING PROVIDED MODEL ID ===');
-      trainedModelId = body.model_id;
-      console.log('Using trained model:', trainedModelId);
-      
-      // Fetch embedding data from Supabase Storage
-      try {
-        console.log('📥 Fetching embedding data from storage...');
-        
-        // Get model details to find storage URL
-        const { data: modelData, error: modelError } = await supabase
-          .from('user_style_models')
-          .select('embedding_storage_url')
-          .eq('model_id', trainedModelId)
-          .eq('training_status', 'completed')
-          .maybeSingle();
-
-        if (modelError) {
-          console.error('Error fetching model data:', modelError);
-        } else if (modelData?.embedding_storage_url) {
-          // Extract file path from storage URL
-          const url = new URL(modelData.embedding_storage_url);
-          const filePath = url.pathname.split('/storage/v1/object/public/handwriting-embeddings/')[1];
-          
-          if (filePath) {
-            const { data: embeddingBlob, error: downloadError } = await supabase.storage
-              .from('handwriting-embeddings')
-              .download(filePath);
-
-            if (!downloadError && embeddingBlob) {
-              const embeddingText = await embeddingBlob.text();
-              embeddingData = JSON.parse(embeddingText);
-              console.log('✅ Successfully loaded embedding data from storage');
-            } else {
-              console.error('❌ Failed to download embedding:', downloadError);
-            }
-          }
-        } else {
-          console.log('No embedding storage URL found for model');
-        }
-      } catch (storageError) {
-        console.error('❌ Error loading embedding from storage:', storageError);
-      }
-    }
-    
-    // Step 2: Generate handwriting using trained model or fallback
-    const maxRetries = 1 // Reduced from 2 to save costs on failed requests
-    const timeoutMs = 30000 // Reduced from 60s to 30s for faster fallback
+    // Follow ChatGPT's recommendation: only pass user_id, let Modal fetch embedding
+    const maxRetries = 1
+    const timeoutMs = 30000
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -121,10 +74,9 @@ serve(async (req) => {
         
         const requestPayload = {
           text: body.text,
-          model_id: trainedModelId,
-          embedding_data: embeddingData, // Include the embedding data from storage
+          user_id: body.user_id, // Let Modal fetch the embedding using user_id
           styleCharacteristics: body.styleCharacteristics || {},
-          // Always include samples as backup in case model_id fails
+          // Include samples as backup in case no trained model exists
           samples: samples.length > 0 ? samples.slice(0, 3) : []
         }
         
@@ -160,7 +112,7 @@ serve(async (req) => {
               strokeWidth: 2.2,
               baseline: "natural"
             },
-            model_id: trainedModelId
+            model_id: body.user_id // Return user_id instead of trainedModelId
           }
           
           return new Response(JSON.stringify(responseData), {
