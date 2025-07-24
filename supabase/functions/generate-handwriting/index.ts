@@ -71,14 +71,14 @@ serve(async (req) => {
         .eq('training_status', 'completed')
         .maybeSingle();
 
-      if (modelError) {
-        console.error('❌ Error fetching model data:', modelError);
-      } else if (modelData?.embedding_storage_url) {
-        modelUrl = modelData.embedding_storage_url;
-        console.log('✅ Found embedding URL:', modelUrl);
-      } else {
-        console.log('⚠️ No completed model found for user, will use samples fallback');
-      }
+        if (modelError) {
+          console.error('❌ Error fetching model data:', modelError);
+        } else if (modelData?.embedding_storage_url) {
+          modelUrl = modelData.embedding_storage_url;
+          console.log('✅ Found Modal embedding storage path:', modelUrl);
+        } else {
+          console.log('⚠️ No embedding storage URL found for model, will use samples fallback');
+        }
     }
     
     // Follow ChatGPT's recommendation: pass user_id and model_url to Modal

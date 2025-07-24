@@ -219,67 +219,30 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
     const result = await response.json();
     console.log('Modal API training result:', result);
 
-    // Extract embedding data from Modal response - handle different response formats
+    // Extract the storage path/URL from Modal response
     let embeddingStorageUrl = null;
-    let embeddingData = null;
     
-    // The Modal API returns various fields - extract all the style data we can find
-    if (result.embedding_id || result.style_characteristics || result.model_id) {
-      embeddingData = {
-        embedding_id: result.embedding_id,
-        style_characteristics: result.style_characteristics,
-        model_id: result.model_id || modelId,
-        user_id: userId,
-        // Include any other fields that might be relevant
-        style_path: result.style_path,
-        model_path: result.model_path,
-        full_result: result // Store the full result for debugging
-      };
-      console.log('✅ Extracted embedding data from Modal response:', embeddingData);
+    // Modal saves the embedding and tells us where it saved it
+    if (result.style_path) {
+      embeddingStorageUrl = result.style_path;
+      console.log('✅ Modal provided embedding storage path:', embeddingStorageUrl);
+    } else if (result.embedding_id) {
+      // If no direct path, construct it from embedding_id
+      embeddingStorageUrl = `/tmp/persistent_styles/${result.embedding_id}.json`;
+      console.log('✅ Constructed embedding storage path from ID:', embeddingStorageUrl);
     } else {
-      console.log('⚠️ No embedding data found in Modal response');
+      console.log('⚠️ No embedding storage path found in Modal response');
       console.log('Available response fields:', Object.keys(result));
     }
-    
-    if (embeddingData) {
-      console.log('💾 Saving embedding to Supabase Storage...');
-      
-      // Save embedding to Supabase Storage
-      const embeddingFileName = `${userId}/style_embedding.json`;
-      
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('handwriting-embeddings')
-        .upload(embeddingFileName, JSON.stringify(embeddingData), {
-          contentType: 'application/json',
-          upsert: true // Overwrite if exists
-        });
 
-      if (uploadError) {
-        console.error('❌ Storage upload error:', uploadError);
-        throw new Error(`Failed to save embedding: ${uploadError.message}`);
-      }
-
-      console.log('✅ Embedding saved to storage:', uploadData);
-
-      // Get storage URL
-      const { data: urlData } = supabase.storage
-        .from('handwriting-embeddings')
-        .getPublicUrl(embeddingFileName);
-      
-      embeddingStorageUrl = urlData.publicUrl;
-      console.log('📍 Embedding storage URL:', embeddingStorageUrl);
-    } else {
-      console.log('⚠️ No embedding data available to save');
-    }
-
-    // Update database with successful training completion and storage URL
+    // Update database with successful training completion and Modal storage URL
     const { error: updateError } = await supabase
       .from('user_style_models')
       .update({
         training_status: 'completed',
         training_completed_at: new Date().toISOString(),
         style_model_path: result.model_path || `models/${modelId}`,
-        embedding_storage_url: embeddingStorageUrl,
+        embedding_storage_url: embeddingStorageUrl, // Store Modal's storage path
         sample_fingerprint: createSampleFingerprint(samples)
       })
       .eq('user_id', userId);
