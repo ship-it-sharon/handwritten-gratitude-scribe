@@ -222,17 +222,16 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
     // Extract the storage path/URL from Modal response
     let embeddingStorageUrl = null;
     
-    // Modal saves the embedding and tells us where it saved it
-    if (result.style_path) {
-      embeddingStorageUrl = result.style_path;
-      console.log('✅ Modal provided embedding storage path:', embeddingStorageUrl);
-    } else if (result.embedding_id) {
-      // If no direct path, construct it from embedding_id
+    // Modal saves the embedding and should tell us where it saved it
+    // Based on your screenshots, look for the actual field names Modal returns
+    if (result.embedding_id) {
+      // Construct the full storage path from embedding_id
       embeddingStorageUrl = `/tmp/persistent_styles/${result.embedding_id}.json`;
-      console.log('✅ Constructed embedding storage path from ID:', embeddingStorageUrl);
+      console.log('✅ Constructed Modal embedding storage path:', embeddingStorageUrl);
     } else {
-      console.log('⚠️ No embedding storage path found in Modal response');
+      console.log('⚠️ No embedding_id found in Modal response');
       console.log('Available response fields:', Object.keys(result));
+      console.log('Full Modal response:', result);
     }
 
     // Update database with successful training completion and Modal storage URL
