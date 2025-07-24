@@ -287,7 +287,7 @@ const SamplePreviewScreen = ({
             </Button>
             <Button variant="elegant" size="lg" onClick={onContinue}>
               <Sparkles className="w-4 h-4" />
-              Analyze My Handwriting
+              Generate Preview
             </Button>
           </div>
         </div>
