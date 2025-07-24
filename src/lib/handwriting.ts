@@ -63,11 +63,16 @@ export const generateHandwritingStyle = async (
         if (modelError) {
           console.error('Error checking model status:', modelError);
         } else if (modelData) {
-          console.log('Model status:', modelData.training_status);
-          if (modelData.training_status === 'failed') {
+          console.log('Model status:', modelData.training_status, 'Model ID:', modelData.model_id);
+          if (modelData.training_status === 'completed' || modelData.training_status === 'training') {
+            // Use the trained model ID for generation
+            requestBody.model_id = modelData.model_id;
+            console.log('✅ Using trained model ID for generation:', modelData.model_id);
+          } else if (modelData.training_status === 'failed') {
             // Try to check if training actually completed by querying Modal API
             console.log('Training marked as failed, checking Modal API status...');
             // For now, still try to generate - Modal might have the model ready
+            requestBody.model_id = modelData.model_id;
           }
         }
       } catch (error) {
