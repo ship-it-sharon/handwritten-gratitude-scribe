@@ -57,11 +57,11 @@ export const checkTrainingStatus = async (userId: string, samples: (string | HTM
   }
   
   if (modelData.training_status === 'completed') {
-    // Check if samples have changed
+    // Check if samples have changed OR if there's no fingerprint (indicates potential desync)
     if (!modelData.sample_fingerprint || modelData.sample_fingerprint !== currentFingerprint) {
       return { 
         needsTraining: true, 
-        reason: modelData.sample_fingerprint ? 'samples_changed' : 'no_fingerprint_stored'
+        reason: modelData.sample_fingerprint ? 'samples_changed' : 'no_fingerprint_stored_force_retrain'
       };
     }
     return { needsTraining: false, reason: 'model_ready', modelId: modelData.model_id };
