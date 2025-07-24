@@ -517,21 +517,40 @@ async def generate_with_trained_model(text: str, model_id: str, model: dict, sty
         # Try to load the user's style data
         style_data = None
         
-        # Look for the style embedding file in possible storage locations
-        # First check if model_id contains the actual file path (new approach)
-        possible_locations = [
-            f"/tmp/persistent_styles/{model_id}.json",  # Use persistent location
-            f"/tmp/style_models/{model_id}.json",
-            f"/root/style_models/{model_id}.json", 
-            f"/tmp/{model_id}.json",  # Fallback location
-            f"/tmp/style_out/{model_id}.json",  # Legacy location
-        ]
-        
-        for style_file_path in possible_locations:
-            if os.path.exists(style_file_path):
-                try:
-                    with open(style_file_path, 'r') as f:
-                        style_data = json.load(f)
+        # Check if model_id is actually a HTTP URL (from Supabase storage)
+        if model_id and model_id.startswith('https://'):
+            print(f"Model ID is a HTTP URL, downloading from: {model_id}")
+            try:
+                import requests
+                response = requests.get(model_id)
+                if response.status_code == 200:
+                    style_data = response.json()
+                    print(f"✅ Successfully downloaded style data from URL")
+                    print(f"Style data keys: {list(style_data.keys()) if style_data else 'None'}")
+                else:
+                    print(f"❌ Failed to download from URL: {response.status_code}")
+                    style_data = None
+            except Exception as e:
+                print(f"❌ Error downloading from URL: {e}")
+                style_data = None
+        else:
+            # Original logic: look for local files
+            print(f"Looking for local style files for model_id: {model_id}")
+            
+            # Look for the style embedding file in possible storage locations
+            possible_locations = [
+                f"/tmp/persistent_styles/{model_id}.json",  # Use persistent location
+                f"/tmp/style_models/{model_id}.json",
+                f"/root/style_models/{model_id}.json", 
+                f"/tmp/{model_id}.json",  # Fallback location
+                f"/tmp/style_out/{model_id}.json",  # Legacy location
+            ]
+            
+            for style_file_path in possible_locations:
+                if os.path.exists(style_file_path):
+                    try:
+                        with open(style_file_path, 'r') as f:
+                            style_data = json.load(f)
                     print(f"✅ Loaded style data from: {style_file_path}")
                     break
                 except Exception as e:
