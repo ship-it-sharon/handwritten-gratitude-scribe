@@ -69,6 +69,8 @@ serve(async (req) => {
         .select('embedding_storage_url, training_status')
         .eq('user_id', body.user_id)
         .eq('training_status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
         if (modelError) {
