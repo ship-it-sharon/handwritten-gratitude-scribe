@@ -8,6 +8,7 @@ import {
   analyzeHandwritingSamples, 
   generateHandwritingStyle, 
   checkTrainingStatus,
+  waitForTrainingCompletion,
   type HandwritingStyle 
 } from "@/lib/handwriting";
 import { supabase } from "@/integrations/supabase/client";
@@ -85,13 +86,21 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
             throw new Error(`Training failed: ${trainingError.message}`);
           }
 
-          // If training just started, wait a bit then check status
+          // If training just started, wait for completion
           if (trainingData?.status === 'training') {
             setProcessingStage("Training in progress...");
-            setEstimatedTime(trainingData.estimated_time || "2-5 minutes");
+            setEstimatedTime(trainingData.estimated_time || "10-15 minutes");
             
-            // For now, continue to generation which will handle training status
-            console.log('📈 Training started, proceeding to generation...');
+            console.log('📈 Training started, waiting for completion...');
+            
+            // Poll training status until completed
+            const completed = await waitForTrainingCompletion(userId!, trainingData.model_id);
+            if (!completed) {
+              throw new Error('Training failed or timed out');
+            }
+            
+            console.log('✅ Training completed successfully!');
+            setProcessingStage("Training completed! Preparing generation...");
           }
         } else {
           console.log(`✅ Training not needed: ${trainingCheck.reason}`);

@@ -76,6 +76,67 @@ export const checkTrainingStatus = async (userId: string, samples: (string | HTM
   return { needsTraining: true, reason: 'unknown_status' };
 };
 
+// Poll training status until completion
+export const waitForTrainingCompletion = async (userId: string, modelId: string): Promise<boolean> => {
+  const maxAttempts = 60; // 60 attempts * 15 seconds = 15 minutes max
+  const pollInterval = 15000; // 15 seconds between polls
+  
+  console.log(`🔄 Starting to poll training status for model: ${modelId}`);
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      console.log(`📊 Polling attempt ${attempt}/${maxAttempts}`);
+      
+      const { data: modelData, error } = await supabase
+        .from('user_style_models')
+        .select('training_status, embedding_storage_url')
+        .eq('user_id', userId)
+        .eq('model_id', modelId)
+        .maybeSingle();
+      
+      if (error) {
+        console.error(`❌ Error polling training status (attempt ${attempt}):`, error);
+        continue;
+      }
+      
+      if (!modelData) {
+        console.error(`❌ Model not found (attempt ${attempt})`);
+        continue;
+      }
+      
+      console.log(`📈 Training status (attempt ${attempt}):`, {
+        training_status: modelData.training_status,
+        has_embedding_url: !!modelData.embedding_storage_url
+      });
+      
+      if (modelData.training_status === 'completed' && modelData.embedding_storage_url) {
+        console.log('✅ Training completed successfully!');
+        return true;
+      }
+      
+      if (modelData.training_status === 'failed') {
+        console.error('❌ Training failed');
+        return false;
+      }
+      
+      // If still training, wait before next poll
+      if (attempt < maxAttempts) {
+        console.log(`⏳ Still training, waiting ${pollInterval/1000} seconds before next check...`);
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      }
+      
+    } catch (error) {
+      console.error(`❌ Error during polling attempt ${attempt}:`, error);
+      if (attempt === maxAttempts) {
+        return false;
+      }
+    }
+  }
+  
+  console.error('❌ Training timed out after maximum attempts');
+  return false;
+};
+
 export const analyzeHandwritingSamples = (samples: (string | HTMLCanvasElement)[]): HandwritingStyle => {
   // This is a simplified analysis - in a real implementation, this would use
   // computer vision to analyze the actual handwriting characteristics
