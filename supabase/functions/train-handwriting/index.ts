@@ -219,9 +219,39 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
     const result = await response.json();
     console.log('Modal API training result:', result);
 
-    // Extract embedding data from Modal response
+    // Extract embedding data from Modal response or fetch it separately
     let embeddingStorageUrl = null;
-    if (result.embedding_data) {
+    let embeddingData = result.embedding_data;
+    
+    // If embedding_data wasn't returned, try to fetch it separately
+    if (!embeddingData && result.model_id) {
+      console.log('🔍 Embedding not in response, fetching separately...');
+      try {
+        const fetchResponse = await fetch(`${modalApiUrl}/get_embedding`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model_id: result.model_id,
+            user_id: userId
+          }),
+          signal: AbortSignal.timeout(30000)
+        });
+        
+        if (fetchResponse.ok) {
+          const fetchResult = await fetchResponse.json();
+          embeddingData = fetchResult.embedding_data;
+          console.log('✅ Successfully fetched embedding data separately');
+        } else {
+          console.log('⚠️ Could not fetch embedding separately, continuing without storage');
+        }
+      } catch (fetchError) {
+        console.log('⚠️ Failed to fetch embedding separately:', fetchError.message);
+      }
+    }
+    
+    if (embeddingData) {
       console.log('💾 Saving embedding to Supabase Storage...');
       
       // Save embedding to Supabase Storage
@@ -229,7 +259,7 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
       
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('handwriting-embeddings')
-        .upload(embeddingFileName, JSON.stringify(result.embedding_data), {
+        .upload(embeddingFileName, JSON.stringify(embeddingData), {
           contentType: 'application/json',
           upsert: true // Overwrite if exists
         });
@@ -248,6 +278,8 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
       
       embeddingStorageUrl = urlData.publicUrl;
       console.log('📍 Embedding storage URL:', embeddingStorageUrl);
+    } else {
+      console.log('⚠️ No embedding data available to save');
     }
 
     // Update database with successful training completion and storage URL
