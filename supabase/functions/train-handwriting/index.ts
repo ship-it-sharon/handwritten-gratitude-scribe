@@ -222,16 +222,25 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
     // Extract the storage path/URL from Modal response
     let embeddingStorageUrl = null;
     
-    // Modal saves the embedding and should tell us where it saved it
-    // Based on your screenshots, look for the actual field names Modal returns
+    // Try multiple ways to extract the embedding storage path from Modal
     if (result.embedding_id) {
-      // Construct the full storage path from embedding_id
       embeddingStorageUrl = `/tmp/persistent_styles/${result.embedding_id}.json`;
-      console.log('✅ Constructed Modal embedding storage path:', embeddingStorageUrl);
+      console.log('✅ Constructed Modal embedding storage path from embedding_id:', embeddingStorageUrl);
+    } else if (result.model_id) {
+      embeddingStorageUrl = `/tmp/persistent_styles/${result.model_id}.json`;
+      console.log('✅ Constructed Modal embedding storage path from model_id:', embeddingStorageUrl);
     } else {
-      console.log('⚠️ No embedding_id found in Modal response');
-      console.log('Available response fields:', Object.keys(result));
-      console.log('Full Modal response:', result);
+      // Look for any field that might contain the storage path
+      const potentialPaths = [result.style_path, result.embedding_path, result.storage_url, result.file_path];
+      embeddingStorageUrl = potentialPaths.find(path => path && path.includes('persistent_styles'));
+      
+      if (embeddingStorageUrl) {
+        console.log('✅ Found Modal embedding storage path in response:', embeddingStorageUrl);
+      } else {
+        console.log('⚠️ Could not find embedding storage path in Modal response');
+        console.log('Available response fields:', Object.keys(result));
+        console.log('Full Modal response:', JSON.stringify(result, null, 2));
+      }
     }
 
     // Update database with successful training completion and Modal storage URL
