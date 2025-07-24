@@ -219,41 +219,22 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
     const result = await response.json();
     console.log('Modal API training result:', result);
 
-    // Extract embedding data using the file path or embedding ID from Modal response
+    // Extract embedding data directly from Modal response
     let embeddingStorageUrl = null;
     let embeddingData = null;
     
-    // Look for embedding ID or file path in the response
-    const embeddingId = result.embedding_id || result.model_id;
-    const stylePath = result.style_path;
-    
-    console.log('🔍 Looking for embedding data...', { embeddingId, stylePath, resultKeys: Object.keys(result) });
-    
-    if (embeddingId) {
-      console.log('🔍 Fetching embedding data using embedding ID:', embeddingId);
-      try {
-        const fetchResponse = await fetch(`${modalApiUrl}/get_style_data`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            embedding_id: embeddingId,
-            user_id: userId
-          }),
-          signal: AbortSignal.timeout(30000)
-        });
-        
-        if (fetchResponse.ok) {
-          const fetchResult = await fetchResponse.json();
-          embeddingData = fetchResult.style_data || fetchResult.embedding_data;
-          console.log('✅ Successfully fetched embedding data using embedding ID');
-        } else {
-          console.log('⚠️ Could not fetch embedding using embedding ID, status:', fetchResponse.status);
-        }
-      } catch (fetchError) {
-        console.log('⚠️ Failed to fetch embedding using embedding ID:', fetchError.message);
-      }
+    // The Modal API returns style characteristics directly in the response
+    if (result.style_characteristics) {
+      embeddingData = {
+        embedding_id: result.embedding_id,
+        style_characteristics: result.style_characteristics,
+        model_id: result.model_id || modelId,
+        user_id: userId
+      };
+      console.log('✅ Found style characteristics in response:', embeddingData);
+    } else {
+      console.log('⚠️ No style characteristics found in Modal response');
+      console.log('Response keys:', Object.keys(result));
     }
     
     if (embeddingData) {
