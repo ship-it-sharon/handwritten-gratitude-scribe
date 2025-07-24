@@ -74,7 +74,7 @@ serve(async (req) => {
       try {
         console.log(`Attempting generation API call (attempt ${attempt}/${maxRetries})...`)
         
-        const modalUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/generate'
+        const modalUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/generate_handwriting'
         
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
@@ -133,8 +133,14 @@ serve(async (req) => {
           console.log(`Modal API returned error on attempt ${attempt}: ${modalResponse.status} - ${errorText}`)
           
           if (attempt === maxRetries) {
-            console.log('Modal API failed, using local fallback generation')
-            break
+            // No fallback - return proper error
+            return new Response(
+              JSON.stringify({ error: `Modal API failed: ${modalResponse.status} - ${errorText}` }),
+              { 
+                status: 503, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              }
+            )
           }
         }
       } catch (modalError) {
