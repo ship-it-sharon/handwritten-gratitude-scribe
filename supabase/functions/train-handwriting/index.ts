@@ -84,9 +84,9 @@ serve(async (req) => {
       );
     }
 
-    // If model is already trained or training, return early
-    if (existingModel?.training_status === 'completed') {
-      console.log('Model already trained, skipping training');
+    // If model is already trained with embeddings stored, return early
+    if (existingModel?.training_status === 'completed' && existingModel.embedding_storage_url) {
+      console.log('Model already trained with embeddings stored, skipping training');
       return new Response(
         JSON.stringify({ 
           message: 'Model already trained',
@@ -95,6 +95,11 @@ serve(async (req) => {
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // If model exists but without embedding storage URL, force re-training
+    if (existingModel?.training_status === 'completed' && !existingModel.embedding_storage_url) {
+      console.log('Model trained but missing embedding storage, forcing re-training');
     }
 
     if (existingModel?.training_status === 'training') {
