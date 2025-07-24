@@ -119,6 +119,8 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
         }
       }
       
+      console.log('📤 About to call generateHandwritingStyle - this should call the generate-handwriting edge function!');
+      
       console.log('📤 Calling generate-handwriting with text:', text.substring(0, 50) + '...');
       console.log('📤 About to call generateHandwritingStyle with:', {
         textLength: text.length,
