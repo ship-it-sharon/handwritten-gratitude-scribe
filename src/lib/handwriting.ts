@@ -77,8 +77,12 @@ export const checkTrainingStatus = async (userId: string, samples: (string | HTM
 };
 
 // Poll training status until completion
-export const waitForTrainingCompletion = async (userId: string, modelId: string): Promise<boolean> => {
-  const maxAttempts = 60; // 60 attempts * 15 seconds = 15 minutes max
+export const waitForTrainingCompletion = async (
+  userId: string, 
+  modelId: string,
+  onProgress?: (attempt: number, maxAttempts: number, timeRemaining: string) => void
+): Promise<boolean> => {
+  const maxAttempts = 80; // 80 attempts * 15 seconds = 20 minutes max (increased buffer)
   const pollInterval = 15000; // 15 seconds between polls
   
   console.log(`🔄 Starting to poll training status for model: ${modelId}`);
@@ -119,9 +123,17 @@ export const waitForTrainingCompletion = async (userId: string, modelId: string)
         return false;
       }
       
-      // If still training, wait before next poll
+      // If still training, provide progress update and wait before next poll
       if (attempt < maxAttempts) {
+        const minutesElapsed = Math.round((attempt * pollInterval) / 60000);
+        const minutesRemaining = Math.max(0, 15 - minutesElapsed); // Estimate 15 min total
+        const timeRemaining = minutesRemaining > 0 ? `~${minutesRemaining} minutes remaining` : "Almost done...";
+        
+        // Call progress callback if provided
+        onProgress?.(attempt, maxAttempts, timeRemaining);
+        
         console.log(`⏳ Still training, waiting ${pollInterval/1000} seconds before next check...`);
+        console.log(`📊 Progress: ${attempt}/${maxAttempts} attempts, ${timeRemaining}`);
         await new Promise(resolve => setTimeout(resolve, pollInterval));
       }
       

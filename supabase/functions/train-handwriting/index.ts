@@ -214,7 +214,7 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(300000) // 5 minute timeout for training (increased from 2 minutes)
+      signal: AbortSignal.timeout(600000) // 10 minute timeout for training (increased to handle longer training)
     });
 
     console.log('Modal API response status:', response.status);

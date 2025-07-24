@@ -94,7 +94,15 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
             console.log('📈 Training started, waiting for completion...');
             
             // Poll training status until completed
-            const completed = await waitForTrainingCompletion(userId!, trainingData.model_id);
+            const completed = await waitForTrainingCompletion(
+              userId!, 
+              trainingData.model_id,
+              (attempt, maxAttempts, timeRemaining) => {
+                // Update UI with progress
+                setProcessingStage(`Training in progress (${Math.round((attempt/maxAttempts)*100)}%)`);
+                setEstimatedTime(timeRemaining);
+              }
+            );
             if (!completed) {
               throw new Error('Training failed or timed out');
             }
