@@ -82,12 +82,9 @@ serve(async (req) => {
         const requestPayload = {
           text: body.text,
           model_id: trainedModelId,
-          styleCharacteristics: body.styleCharacteristics || {}
-        }
-        
-        // Only include samples if no trained model (for fallback generation)
-        if (!trainedModelId && samples.length > 0) {
-          requestPayload.samples = samples.slice(0, 3); // Limit to 3 samples to reduce processing
+          styleCharacteristics: body.styleCharacteristics || {},
+          // Always include samples as backup in case model_id fails
+          samples: samples.length > 0 ? samples.slice(0, 3) : []
         }
         
         console.log('Making POST request to Modal API...')
