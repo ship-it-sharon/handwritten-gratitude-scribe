@@ -187,6 +187,7 @@ const Index = () => {
             setCurrentStep('preview-samples');
           }} 
           user={user}
+          existingSamples={handwritingSamples}
         />;
       case 'preview-samples':
         return <SamplePreviewScreen 

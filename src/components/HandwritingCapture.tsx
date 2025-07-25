@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface HandwritingCaptureProps {
   onNext: (samples: (string | HTMLCanvasElement)[]) => void;
   user?: any; // Add user prop to load existing samples
+  existingSamples?: (string | HTMLCanvasElement)[]; // Pass existing samples to avoid duplicate queries
 }
 
 const sampleTexts = [
@@ -23,7 +24,7 @@ const sampleTexts = [
   "Best wishes: sincerely yours (always & forever)"
 ];
 
-export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) => {
+export const HandwritingCapture = ({ onNext, user, existingSamples }: HandwritingCaptureProps) => {
   const [currentSample, setCurrentSample] = useState(0);
   const [captureMethod, setCaptureMethod] = useState<'draw' | 'upload' | 'mobile'>('draw');
   const [isDrawing, setIsDrawing] = useState(false);
@@ -75,7 +76,26 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
   useEffect(() => {
     const loadExistingSamples = async () => {
       try {
-        // Load user's saved samples if authenticated
+        // First check if existingSamples were passed as props
+        if (existingSamples && existingSamples.length > 0) {
+          console.log('🔍 Using existing samples passed as props:', existingSamples.length);
+          const newUploadedImages = new Map<number, string>();
+          const newCompleted = new Set<number>();
+          
+          existingSamples.forEach((sample, index) => {
+            if (index < sampleTexts.length && typeof sample === 'string') {
+              newUploadedImages.set(index, sample);
+              newCompleted.add(index);
+            }
+          });
+          
+          setUploadedImages(newUploadedImages);
+          setCompletedSamples(newCompleted);
+          toast.success(`Loaded ${newCompleted.size} existing handwriting samples!`);
+          return;
+        }
+        
+        // Fall back to database query if no existing samples passed as props
         if (user) {
           console.log('🔍 Loading existing user samples for user:', user.id);
           const { data, error } = await supabase
@@ -163,7 +183,7 @@ export const HandwritingCapture = ({ onNext, user }: HandwritingCaptureProps) =>
     };
     
     loadExistingSamples();
-  }, [user]); // Reload when user changes
+  }, [user, existingSamples]); // Reload when user or existing samples change
 
   // Reset states when switching methods or samples
   useEffect(() => {
