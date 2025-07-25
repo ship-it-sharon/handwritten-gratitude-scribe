@@ -484,23 +484,36 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
             # Upload tensor file to Supabase storage
             try:
                 print(f"🔄 Uploading tensor file to Supabase storage...")
-                import requests
+                import os
+                
+                # Get environment variables for Supabase
+                supabase_url = os.environ.get('SUPABASE_URL', 'https://lkqjlibxmsnjqaifipes.supabase.co')
+                service_role_key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
+                
+                if not service_role_key:
+                    print("⚠️ SUPABASE_SERVICE_ROLE_KEY not found in environment")
+                    raise Exception("Missing service role key")
                 
                 # Read the tensor file
                 with open(samples_file_path, 'rb') as f:
                     tensor_data = f.read()
                 
-                # Upload to Supabase storage
-                supabase_url = "https://lkqjlibxmsnjqaifipes.supabase.co"
+                # Upload to Supabase storage using the correct endpoint
                 upload_url = f"{supabase_url}/storage/v1/object/style-tensors/{embedding_id}_samples.pt"
                 
                 # Use service role key for upload
                 upload_headers = {
-                    'Authorization': f'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxrcWpsaWJ4bXNuanFhaWZpcGVzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MjI5ODI3NCwiZXhwIjoyMDY3ODc0Mjc0fQ.KqF-xQsN7Ypo0WoamM_1hM5n9PGXqXhtjUGtBUGNhBA',
+                    'Authorization': f'Bearer {service_role_key}',
                     'Content-Type': 'application/octet-stream'
                 }
                 
+                print(f"📤 Uploading to: {upload_url}")
+                import requests
                 upload_response = requests.post(upload_url, data=tensor_data, headers=upload_headers)
+                
+                print(f"📊 Upload response: {upload_response.status_code}")
+                if upload_response.text:
+                    print(f"📋 Response: {upload_response.text}")
                 
                 if upload_response.status_code in [200, 201]:
                     print(f"✅ Successfully uploaded tensor to Supabase storage")
