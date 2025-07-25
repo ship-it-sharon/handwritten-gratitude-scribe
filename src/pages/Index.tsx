@@ -40,7 +40,7 @@ const Index = () => {
       .from('user_style_models')
       .select('*')
       .eq('user_id', user.id)
-      .eq('training_status', 'completed')
+      .in('training_status', ['completed', 'failed', 'pending', 'training'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();

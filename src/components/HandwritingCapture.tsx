@@ -102,7 +102,7 @@ export const HandwritingCapture = ({ onNext, user, existingSamples }: Handwritin
             .from('user_style_models')
             .select('sample_images, training_status, embedding_storage_url')
             .eq('user_id', user.id)
-            .eq('training_status', 'completed')
+            .in('training_status', ['completed', 'failed', 'pending', 'training'])
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
