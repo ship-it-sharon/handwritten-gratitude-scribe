@@ -251,8 +251,13 @@ def fastapi_app():
             
             # Generate handwriting
             if model_id:
-                print(f"Using trained model: {model_id}")
-                handwriting_image = await generate_with_trained_model(text, model_id, model, style_params)
+                # Check if model_id is a URL (from Supabase) that we need to download
+                if model_id.startswith('https://'):
+                    print(f"Model ID is a URL, downloading: {model_id}")
+                    handwriting_image = await generate_with_model_url(text, model_id, model, style_params)
+                else:
+                    print(f"Using local trained model: {model_id}")
+                    handwriting_image = await generate_with_trained_model(text, model_id, model, style_params)
             else:
                 print("Using fallback generation (no trained model)")
                 handwriting_image = await generate_fallback_handwriting(text, model, style_params)
@@ -498,6 +503,40 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
         fallback_model_id = f"style_profile_critical_error_{user_id}_{sample_hash}"
         print(f"Critical error fallback: {fallback_model_id}")
         return fallback_model_id
+
+async def generate_with_model_url(text: str, model_url: str, model: dict, style_params: dict):
+    """Generate handwriting using a model downloaded from URL"""
+    import tempfile
+    import os
+    import requests
+    import json
+    from PIL import Image
+    
+    try:
+        # Download the model from the URL
+        print(f"Downloading model from URL: {model_url}")
+        response = requests.get(model_url)
+        response.raise_for_status()
+        
+        # Save to temporary file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(response.json(), f)
+            temp_model_path = f.name
+        
+        print(f"Model downloaded to: {temp_model_path}")
+        
+        # Use the temporary model file
+        result = await generate_with_trained_model(text, temp_model_path, model, style_params)
+        
+        # Clean up
+        os.unlink(temp_model_path)
+        
+        return result
+        
+    except Exception as e:
+        print(f"Error downloading/using model from URL: {e}")
+        # Fallback to regular generation
+        return await generate_fallback_handwriting(text, model, style_params)
 
 async def generate_with_trained_model(text: str, model_id: str, model: dict, style_params: dict):
     """Generate handwriting using user's style embeddings"""

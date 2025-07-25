@@ -81,21 +81,9 @@ export const checkTrainingStatus = async (userId: string, samples: (string | HTM
       stored_fingerprint: modelData.sample_fingerprint
     });
     
-    // CRITICAL: Test if the embedding URL is actually accessible
-    if (hasEmbeddingStorage && !samplesChanged) {
-      try {
-        console.log('🧪 Testing embedding URL accessibility...');
-        const testResponse = await fetch(modelData.embedding_storage_url!, { method: 'HEAD' });
-        if (!testResponse.ok) {
-          console.log('❌ Embedding URL not accessible - retraining needed');
-          return { needsTraining: true, reason: 'embedding_not_accessible' };
-        }
-        console.log('✅ Embedding URL is accessible');
-      } catch (urlError) {
-        console.log('❌ Error testing embedding URL - retraining needed:', urlError);
-        return { needsTraining: true, reason: 'embedding_url_error' };
-      }
-    }
+    // Skip URL accessibility test - it's causing false negatives
+    // The URL test is unreliable because of CORS and auth headers
+    console.log('✅ Skipping URL accessibility test to prevent false negatives');
     
     if (!hasFingerprint || !hasEmbeddingStorage || samplesChanged) {
       const reason = !hasFingerprint ? 'no_fingerprint_stored' : 
