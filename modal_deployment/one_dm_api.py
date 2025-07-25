@@ -775,9 +775,10 @@ async def generate_with_model_url(text: str, model_url: str, model: dict, style_
         if 'embedding_id' in embedding_data:
             embedding_id = embedding_data['embedding_id']
             
-            # Construct the URL for the tensor file (.pt file)
-            base_url = model_url.rsplit('/', 1)[0]  # Remove the .json filename
-            tensor_url = f"{base_url}/{embedding_id}_samples.pt"
+            # Construct the URL for the tensor file (.pt file) in the style-tensors bucket
+            # Extract the base Supabase URL from the metadata URL
+            supabase_base = model_url.split('/storage/v1/object/public/')[0]
+            tensor_url = f"{supabase_base}/storage/v1/object/public/style-tensors/{embedding_id}_samples.pt"
             
             print(f"Attempting to download tensor from: {tensor_url}")
             
