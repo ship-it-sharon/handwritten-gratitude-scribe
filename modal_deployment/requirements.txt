@@ -9,3 +9,4 @@ matplotlib>=3.4.0
 requests>=2.25.0
 fastapi>=0.68.0
 python-multipart>=0.0.5
+einops>=0.6.0
