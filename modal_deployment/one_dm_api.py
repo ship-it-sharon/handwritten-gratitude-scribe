@@ -493,7 +493,7 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
                 # Temporary fallback - replace with your actual service role key
                 if not service_role_key:
                     print("⚠️ SUPABASE_SERVICE_ROLE_KEY not found in environment, using fallback")
-                    service_role_key = "PASTE_YOUR_SERVICE_ROLE_KEY_HERE"  # Replace this with your actual key
+                    service_role_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxrcWpsaWJ4bXNuanFhaWZpcGVzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MjI5ODI3NCwiZXhwIjoyMDY3ODc0Mjc0fQ.O-YXddxLBkNR08Kh3saVO1swhntFdjMmRxC7kPwjVbQ"
                 
                 # Read the tensor file
                 with open(samples_file_path, 'rb') as f:
