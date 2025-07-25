@@ -172,7 +172,31 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
       setProcessingStage("");
       setEstimatedTime("");
       setGeneratedSvg("");
-      // You could add error state UI here
+      
+      // Show user-friendly error message
+      let errorMessage = 'Failed to generate handwriting. ';
+      if (error instanceof Error) {
+        if (error.message.includes('non-2xx status code') || error.message.includes('timeout') || error.message.includes('aborted')) {
+          errorMessage += 'The AI service is temporarily unavailable. This usually means the model needs retraining. Please try again.';
+          
+          // Force retraining by clearing the cached model status
+          if (userId) {
+            console.log('🔄 Clearing cached model due to generation failure...');
+            // We'll trigger a retraining on next attempt by marking current model as failed
+            supabase
+              .from('user_style_models')
+              .update({ training_status: 'failed' })
+              .eq('user_id', userId)
+              .eq('training_status', 'completed')
+              .then(() => console.log('✅ Marked model for retraining'));
+          }
+        } else {
+          errorMessage += error.message;
+        }
+      }
+      
+      // Show alert with clear instructions
+      alert(errorMessage + '\n\nNext steps:\n1. Click "Generate Preview" again\n2. Your model will be retrained automatically\n3. This may take 2-5 minutes');
     } finally {
       setIsGenerating(false);
     }

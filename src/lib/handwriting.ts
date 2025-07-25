@@ -29,6 +29,7 @@ export const createSampleFingerprint = (samples: (string | HTMLCanvasElement)[])
 // Check if training is needed based on samples
 export const checkTrainingStatus = async (userId: string, samples: (string | HTMLCanvasElement)[]) => {
   const currentFingerprint = createSampleFingerprint(samples);
+  console.log('🔍 Sample fingerprint:', currentFingerprint);
   
   // Check if we have existing embeddings
   const { data: modelData, error } = await supabase
@@ -40,19 +41,29 @@ export const checkTrainingStatus = async (userId: string, samples: (string | HTM
     .maybeSingle();
     
   if (error) {
-    console.error('Error checking training status:', error);
+    console.error('❌ Error checking training status:', error);
     return { needsTraining: true, reason: 'error_checking_status' };
   }
   
   if (!modelData) {
+    console.log('📝 No existing model found - training needed');
     return { needsTraining: true, reason: 'no_existing_model' };
   }
   
+  console.log('🔍 Latest model:', {
+    model_id: modelData.model_id,
+    training_status: modelData.training_status,
+    sample_fingerprint: modelData.sample_fingerprint,
+    embedding_storage_url: modelData.embedding_storage_url ? 'present' : 'missing'
+  });
+  
   if (modelData.training_status === 'failed') {
+    console.log('❌ Previous training failed - retraining needed');
     return { needsTraining: true, reason: 'previous_training_failed' };
   }
   
   if (modelData.training_status === 'pending' || modelData.training_status === 'training') {
+    console.log('⏳ Training in progress');
     return { needsTraining: false, reason: 'training_in_progress', modelId: modelData.model_id };
   }
   
@@ -62,17 +73,43 @@ export const checkTrainingStatus = async (userId: string, samples: (string | HTM
     const hasEmbeddingStorage = !!modelData.embedding_storage_url;
     const samplesChanged = modelData.sample_fingerprint !== currentFingerprint;
     
-    if (!hasFingerprint || !hasEmbeddingStorage || samplesChanged) {
-      return { 
-        needsTraining: true, 
-        reason: !hasFingerprint ? 'no_fingerprint_stored' : 
-                !hasEmbeddingStorage ? 'no_embedding_storage' :
-                'samples_changed'
-      };
+    console.log('🔍 Model validation:', {
+      hasFingerprint,
+      hasEmbeddingStorage,
+      samplesChanged,
+      current_fingerprint: currentFingerprint,
+      stored_fingerprint: modelData.sample_fingerprint
+    });
+    
+    // CRITICAL: Test if the embedding URL is actually accessible
+    if (hasEmbeddingStorage && !samplesChanged) {
+      try {
+        console.log('🧪 Testing embedding URL accessibility...');
+        const testResponse = await fetch(modelData.embedding_storage_url!, { method: 'HEAD' });
+        if (!testResponse.ok) {
+          console.log('❌ Embedding URL not accessible - retraining needed');
+          return { needsTraining: true, reason: 'embedding_not_accessible' };
+        }
+        console.log('✅ Embedding URL is accessible');
+      } catch (urlError) {
+        console.log('❌ Error testing embedding URL - retraining needed:', urlError);
+        return { needsTraining: true, reason: 'embedding_url_error' };
+      }
     }
+    
+    if (!hasFingerprint || !hasEmbeddingStorage || samplesChanged) {
+      const reason = !hasFingerprint ? 'no_fingerprint_stored' : 
+                     !hasEmbeddingStorage ? 'no_embedding_storage' :
+                     'samples_changed';
+      console.log(`📝 Training needed: ${reason}`);
+      return { needsTraining: true, reason };
+    }
+    
+    console.log('✅ Model ready and valid');
     return { needsTraining: false, reason: 'model_ready', modelId: modelData.model_id };
   }
   
+  console.log('🔄 Unknown status - defaulting to retrain');
   return { needsTraining: true, reason: 'unknown_status' };
 };
 
