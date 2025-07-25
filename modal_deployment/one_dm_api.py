@@ -363,8 +363,8 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
         # Process and save training samples
         successful_samples = 0
         for i, sample_data in enumerate(samples[:5]):  # Use up to 5 samples
-                try:
-                    print(f"Processing sample {i+1}/{len(samples[:5])}...")
+            try:
+                print(f"Processing sample {i+1}/{len(samples[:5])}...")
                     
                     # Handle base64 data URI format
                     if sample_data.startswith('data:image/'):
@@ -593,8 +593,8 @@ async def generate_with_trained_model(text: str, model_id: str, model: dict, sty
                         print(f"✅ Loaded style data from: {style_file_path}")
                         break
                     except Exception as e:
-                    print(f"Error loading style data from {style_file_path}: {e}")
-                    continue
+                        print(f"Error loading style data from {style_file_path}: {e}")
+                        continue
         
         if style_data:
             # Generate handwriting using the user's specific style characteristics
