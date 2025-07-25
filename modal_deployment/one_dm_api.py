@@ -499,18 +499,24 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
                 with open(samples_file_path, 'rb') as f:
                     tensor_data = f.read()
                 
-                # Upload to Supabase storage using the correct endpoint
-                upload_url = f"{supabase_url}/storage/v1/object/style-tensors/{embedding_id}_samples.pt"
+                # Upload to Supabase storage using PUT method
+                import requests
                 
-                # Use service role key for upload
+                # Create the filename for the tensor
+                tensor_filename = f"{embedding_id}_samples.pt"
+                
+                # Upload to Supabase storage using the correct endpoint
+                upload_url = f"{supabase_url}/storage/v1/object/style-tensors/{tensor_filename}"
+                
+                # Use service role key for upload with proper headers for Supabase
                 upload_headers = {
                     'Authorization': f'Bearer {service_role_key}',
                     'Content-Type': 'application/octet-stream'
                 }
                 
                 print(f"📤 Uploading to: {upload_url}")
-                import requests
-                upload_response = requests.post(upload_url, data=tensor_data, headers=upload_headers)
+                # Use PUT method for Supabase storage
+                upload_response = requests.put(upload_url, data=tensor_data, headers=upload_headers)
                 
                 print(f"📊 Upload response: {upload_response.status_code}")
                 if upload_response.text:
