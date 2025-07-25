@@ -147,45 +147,38 @@ def fastapi_app():
             
             if use_diffusionpen:
                 print("Loading DiffusionPen model...")
-                # For now, DiffusionPen integration is complex and requires custom implementation
-                # Falling back to enhanced Stable Diffusion until full integration is complete
-                print("DiffusionPen detected but full integration not yet implemented")
-                print("Falling back to enhanced Stable Diffusion for better handwriting generation")
-                use_diffusionpen = False
-            
-            if not use_diffusionpen:
-                print("Loading standard Stable Diffusion pipeline...")
-                # Load the base Stable Diffusion model as fallback
-                model_id = "stable-diffusion-v1-5/stable-diffusion-v1-5"
+                # DiffusionPen requires specific imports and setup
+                sys.path.insert(0, '/root/DiffusionPen')
                 
-                # Initialize the pipeline with custom scheduler
-                scheduler = DDIMScheduler.from_pretrained(model_id, subfolder="scheduler")
+                # Import DiffusionPen specific modules
+                import train
+                from feature_extractor import FeatureExtractor
+                from unet import UNetConditionalModel
                 
-                pipeline = StableDiffusionPipeline.from_pretrained(
-                    model_id,
-                    scheduler=scheduler,
-                    torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-                    safety_checker=None,
-                    requires_safety_checker=False
+                # Set up DiffusionPen model paths
+                model_path = '/root/diffusionpen_iam_model_path'
+                style_path = '/root/style_models/iam_style_diffusionpen.pth'
+                
+                # Load the DiffusionPen model components
+                diffusionpen_model = train.load_diffusionpen_model(
+                    model_path=model_path,
+                    style_path=style_path
                 )
                 
-                pipeline = pipeline.to(device)
+                print("DiffusionPen model loaded successfully")
             
-            # Enable memory efficient attention for both pipelines
-            pipeline.enable_attention_slicing()
-            if hasattr(pipeline, 'enable_xformers_memory_efficient_attention'):
-                try:
-                    pipeline.enable_xformers_memory_efficient_attention()
-                except Exception as e:
-                    print(f"Could not enable xformers: {e}")
+            if not use_diffusionpen:
+                raise Exception("DiffusionPen failed to load - no fallback to Stable Diffusion allowed")
             
-            print(f"Pipeline loaded successfully on {device}")
+            print(f"DiffusionPen loaded successfully on {device}")
             
             diffusion_model = {
-                'pipeline': pipeline,
+                'pipeline': diffusionpen_model,
                 'device': device,
                 'diffusionpen_path': '/root/DiffusionPen',
-                'supports_style_embedding': use_diffusionpen
+                'supports_style_embedding': True,
+                'model_path': model_path,
+                'style_path': style_path
             }
             
             return diffusion_model
@@ -622,15 +615,51 @@ async def generate_with_model_url(text: str, model_url: str, model: dict, style_
         return await generate_fallback_handwriting(text, model, style_params)
 
 async def generate_with_trained_model(text: str, model_id: str, model: dict, style_params: dict):
-    """Generate handwriting using user's style embeddings"""
+    """Generate handwriting using DiffusionPen with user's style embeddings"""
     import torch
     import tempfile
     import os
     import json
+    import subprocess
+    import sys
     from PIL import Image
     
     try:
-        pipeline = model['pipeline']
+        print(f"Generating handwriting with DiffusionPen for text: '{text}'")
+        
+        # DiffusionPen requires running train.py with specific parameters
+        diffusionpen_path = model['diffusionpen_path']
+        model_path = model['model_path'] 
+        style_path = model['style_path']
+        
+        # Create temporary directory for output
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = os.path.join(temp_dir, "generated.png")
+            
+            # Run DiffusionPen generation using train.py
+            cmd = [
+                sys.executable, 
+                os.path.join(diffusionpen_path, "train.py"),
+                "--save_path", model_path,
+                "--style_path", style_path,
+                "--train_mode", "sampling",
+                "--sampling_mode", "single_sampling",
+                "--text", text,
+                "--output_path", output_path
+            ]
+            
+            print(f"Running DiffusionPen command: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=diffusionpen_path)
+            
+            if result.returncode != 0:
+                print(f"DiffusionPen generation failed: {result.stderr}")
+                raise Exception(f"DiffusionPen generation failed: {result.stderr}")
+            
+            # Load the generated image
+            if os.path.exists(output_path):
+                return Image.open(output_path)
+            else:
+                raise Exception("DiffusionPen did not generate output file")
         device = model['device']
         diffusionpen_path = model['diffusionpen_path']
         
@@ -955,15 +984,50 @@ async def generate_with_style_embedding(text: str, style_embedding, model: dict,
         return await generate_fallback_handwriting(text, model, style_params)
 
 async def generate_fallback_handwriting(text: str, model: dict, style_params: dict):
-    """Generate handwriting using enhanced Stable Diffusion prompts"""
+    """Generate handwriting using DiffusionPen default style"""
     import torch
+    import tempfile
+    import os
+    import subprocess
+    import sys
     from PIL import Image
     
     try:
-        pipeline = model['pipeline']
-        device = model['device']
+        print(f"Using DiffusionPen fallback generation for: '{text}'")
         
-        print("Using enhanced Stable Diffusion fallback")
+        # DiffusionPen paths
+        diffusionpen_path = model['diffusionpen_path']
+        model_path = model['model_path'] 
+        style_path = model['style_path']
+        
+        # Create temporary directory for output
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = os.path.join(temp_dir, "generated.png")
+            
+            # Run DiffusionPen generation using train.py
+            cmd = [
+                sys.executable, 
+                os.path.join(diffusionpen_path, "train.py"),
+                "--save_path", model_path,
+                "--style_path", style_path,
+                "--train_mode", "sampling",
+                "--sampling_mode", "single_sampling",
+                "--text", text,
+                "--output_path", output_path
+            ]
+            
+            print(f"Running DiffusionPen fallback command: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=diffusionpen_path)
+            
+            if result.returncode != 0:
+                print(f"DiffusionPen fallback generation failed: {result.stderr}")
+                raise Exception(f"DiffusionPen generation failed: {result.stderr}")
+            
+            # Load the generated image
+            if os.path.exists(output_path):
+                return Image.open(output_path)
+            else:
+                raise Exception("DiffusionPen did not generate output file")
         
         # Create enhanced prompt for handwriting with style parameters
         slant = style_params.get('slant', 0)
