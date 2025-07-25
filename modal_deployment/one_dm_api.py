@@ -365,36 +365,36 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
         for i, sample_data in enumerate(samples[:5]):  # Use up to 5 samples
             try:
                 print(f"Processing sample {i+1}/{len(samples[:5])}...")
-                    
-                    # Handle base64 data URI format
-                    if sample_data.startswith('data:image/'):
-                        # Extract base64 data from data URI
-                        base64_data = sample_data.split(',')[1]
-                    else:
-                        # Assume it's already base64 encoded
-                        base64_data = sample_data
-                    
-                    # Decode base64 image
-                    image_data = base64.b64decode(base64_data)
-                    ref_image = Image.open(io.BytesIO(image_data))
-                    
-                    print(f"  Loaded sample {i}: {ref_image.size} {ref_image.mode}")
-                    
-                    # Clean and prepare sample image
-                    cleaned_image = clean_sample_image(ref_image)
-                    
-                    # Save to training directory with proper naming
-                    style_path = os.path.join(style_dir, f"user_sample_{i:03d}.png")
-                    cleaned_image.save(style_path, "PNG")
-                    
-                    print(f"  Saved processed sample to: {style_path}")
-                    successful_samples += 1
-                    
-                except Exception as e:
-                    print(f"ERROR processing sample {i}: {e}")
-                    print(f"Sample data type: {type(sample_data)}")
-                    print(f"Sample data preview: {str(sample_data)[:100]}...")
-                    continue
+                
+                # Handle base64 data URI format
+                if sample_data.startswith('data:image/'):
+                    # Extract base64 data from data URI
+                    base64_data = sample_data.split(',')[1]
+                else:
+                    # Assume it's already base64 encoded
+                    base64_data = sample_data
+                
+                # Decode base64 image
+                image_data = base64.b64decode(base64_data)
+                ref_image = Image.open(io.BytesIO(image_data))
+                
+                print(f"  Loaded sample {i}: {ref_image.size} {ref_image.mode}")
+                
+                # Clean and prepare sample image
+                cleaned_image = clean_sample_image(ref_image)
+                
+                # Save to training directory with proper naming
+                style_path = os.path.join(style_dir, f"user_sample_{i:03d}.png")
+                cleaned_image.save(style_path, "PNG")
+                
+                print(f"  Saved processed sample to: {style_path}")
+                successful_samples += 1
+                
+            except Exception as e:
+                print(f"ERROR processing sample {i}: {e}")
+                print(f"Sample data type: {type(sample_data)}")
+                print(f"Sample data preview: {str(sample_data)[:100]}...")
+                continue
         
         if successful_samples == 0:
             print("ERROR: No valid samples processed - cannot train model")
