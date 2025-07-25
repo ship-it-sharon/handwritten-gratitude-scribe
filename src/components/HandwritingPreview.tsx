@@ -128,6 +128,12 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
       // Generate the handwriting
       setProcessingStage("Generating your handwritten text...");
       console.log('🎨 Generating handwriting with analyzed style...');
+      console.log('📋 Generation parameters:', {
+        text: text.substring(0, 50) + '...',
+        hasStyle: !!style,
+        samplesCount: base64Samples.length,
+        userId: userId || 'none'
+      });
 
       const response = await generateHandwritingStyle(
         text, 
