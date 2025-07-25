@@ -719,6 +719,132 @@ def post_process_styled_handwriting(image, style_characteristics):
     print(f"Applied style-specific post-processing: contrast={contrast}, intensity={avg_intensity}")
     return processed_image
 
+async def generate_with_model_url(text: str, model_url: str, model: dict, style_params: dict):
+    """Generate handwriting using a model downloaded from URL"""
+    import tempfile
+    import os
+    import requests
+    import json
+    import torch
+    from PIL import Image
+    
+    try:
+        # Download the style embedding from the URL
+        print(f"Downloading style embedding from URL: {model_url}")
+        response = requests.get(model_url, timeout=30)
+        response.raise_for_status()
+        
+        # Load the style embedding data
+        embedding_data = response.json()
+        print(f"Loaded style embedding data: {list(embedding_data.keys())}")
+        
+        # Convert embedding back to tensor if it was saved as a list
+        if 'style_embedding' in embedding_data:
+            style_embedding = torch.tensor(embedding_data['style_embedding'])
+            print(f"Loaded style embedding tensor shape: {style_embedding.shape}")
+        else:
+            print("No style embedding found in downloaded data, using fallback")
+            return await generate_fallback_handwriting(text, model, style_params)
+        
+        # Generate handwriting with the user's style embedding
+        return await generate_with_style_embedding(text, style_embedding, model, style_params)
+        
+    except Exception as e:
+        print(f"Error downloading/using model from URL: {e}")
+        import traceback
+        traceback.print_exc()
+        # Fallback to regular generation
+        return await generate_fallback_handwriting(text, model, style_params)
+
+async def generate_with_trained_model(text: str, model_path: str, model: dict, style_params: dict):
+    """Generate handwriting using a trained model file"""
+    import torch
+    import json
+    import os
+    
+    try:
+        print(f"Loading trained model from: {model_path}")
+        
+        # Load the style embedding from local file
+        if os.path.exists(model_path):
+            with open(model_path, 'r') as f:
+                embedding_data = json.load(f)
+            
+            if 'style_embedding' in embedding_data:
+                style_embedding = torch.tensor(embedding_data['style_embedding'])
+                print(f"Loaded local style embedding tensor shape: {style_embedding.shape}")
+                
+                # Generate handwriting with the user's style embedding
+                return await generate_with_style_embedding(text, style_embedding, model, style_params)
+            else:
+                print("No style embedding found in model file")
+        else:
+            print(f"Model file not found: {model_path}")
+            
+        # Fallback if no style embedding available
+        return await generate_fallback_handwriting(text, model, style_params)
+        
+    except Exception as e:
+        print(f"Error loading trained model: {e}")
+        import traceback
+        traceback.print_exc()
+        return await generate_fallback_handwriting(text, model, style_params)
+
+async def generate_with_style_embedding(text: str, style_embedding: torch.Tensor, model: dict, style_params: dict):
+    """Generate handwriting using DiffusionPen with user's style embedding"""
+    import torch
+    import sys
+    import os
+    from PIL import Image
+    
+    try:
+        # Add DiffusionPen to path
+        sys.path.append('/root/DiffusionPen')
+        
+        print(f"Generating handwriting with style embedding for text: '{text}'")
+        print(f"Style embedding shape: {style_embedding.shape}")
+        
+        # Import DiffusionPen components
+        from diffusers import StableDiffusionPipeline
+        
+        pipeline = model['pipeline']
+        device = model['device']
+        
+        # Move style embedding to the correct device
+        style_embedding = style_embedding.to(device)
+        
+        # Create DiffusionPen-compatible prompt
+        prompt = f"handwritten text: {text}"
+        
+        with torch.no_grad():
+            # CRITICAL: Pass the style embedding to the pipeline
+            # This is what makes it use the user's handwriting style!
+            result = pipeline(
+                prompt=prompt,
+                style_emb=style_embedding,  # This is the key parameter!
+                height=128,
+                width=512,
+                num_inference_steps=30,
+                guidance_scale=7.5,
+                generator=torch.Generator(device=device).manual_seed(42)
+            )
+            
+            generated_image = result.images[0]
+            print("Successfully generated personalized handwriting with style embedding!")
+        
+        # Apply style-specific post-processing
+        processed_image = apply_style_specific_processing(generated_image, style_params)
+        return processed_image
+        
+    except Exception as e:
+        print(f"Error generating with style embedding: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Fallback to enhanced generation without style embedding
+        print("Falling back to enhanced generation without style embedding")
+        return await generate_fallback_handwriting(text, model, style_params)
+
 async def generate_fallback_handwriting(text: str, model: dict, style_params: dict):
     """Generate handwriting using enhanced Stable Diffusion prompts"""
     import torch
@@ -730,8 +856,17 @@ async def generate_fallback_handwriting(text: str, model: dict, style_params: di
         
         print("Using enhanced Stable Diffusion fallback")
         
-        # Create enhanced prompt for handwriting
-        prompt = f"beautiful handwritten text saying '{text}', elegant cursive handwriting, black ink on white paper, natural handwriting style, realistic pen strokes, clean and legible, professional handwriting"
+        # Create enhanced prompt for handwriting with style parameters
+        slant = style_params.get('slant', 0)
+        spacing = style_params.get('spacing', 1.0)
+        stroke_width = style_params.get('strokeWidth', 2.0)
+        
+        # Adjust prompt based on style parameters
+        slant_desc = "right-leaning" if slant > 2 else "left-leaning" if slant < -2 else "upright"
+        spacing_desc = "widely spaced" if spacing > 1.2 else "tightly spaced" if spacing < 0.8 else "naturally spaced"
+        stroke_desc = "thick" if stroke_width > 2.5 else "thin" if stroke_width < 1.5 else "medium"
+        
+        prompt = f"beautiful handwritten text saying '{text}', {slant_desc} {spacing_desc} {stroke_desc} cursive handwriting, black ink on white paper, natural handwriting style, realistic pen strokes, clean and legible"
         negative_prompt = "printed text, typed text, computer font, digital text, blurry, distorted, pixelated, low quality, artifacts, messy"
         
         with torch.no_grad():
@@ -793,6 +928,10 @@ def post_process_handwriting(image):
     processed_image = enhancer.enhance(1.2)  # Slight contrast boost
     
     return processed_image
+
+def apply_style_specific_processing(image, style_params):
+    """Apply style-specific post-processing to generated handwriting"""
+    return post_process_handwriting(image)  # For now, use the same processing
 
 def create_fallback_handwriting_image(text: str):
     """Create a fallback handwriting image if diffusion fails"""
