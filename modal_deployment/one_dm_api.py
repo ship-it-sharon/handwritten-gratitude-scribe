@@ -153,8 +153,10 @@ def fastapi_app():
                 print("Loading DiffusionPen pipeline...")
                 # Load the actual DiffusionPen model
                 try:
+                    # Use the local DiffusionPen model path
+                    diffusionpen_model_path = "/root/diffusionpen/diffusionpen_iam_model_path"
                     pipeline = DiffusionPenPipeline.from_pretrained(
-                        "stable-diffusion-v1-5/stable-diffusion-v1-5",
+                        diffusionpen_model_path,
                         torch_dtype=torch.float16 if device == "cuda" else torch.float32,
                         safety_checker=None,
                         requires_safety_checker=False
