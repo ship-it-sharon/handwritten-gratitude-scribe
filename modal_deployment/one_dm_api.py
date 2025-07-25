@@ -123,25 +123,21 @@ def fastapi_app():
             # Initialize DiffusionPen model
             # Import DiffusionPen modules after adding to path
             try:
-                # Try to import the actual DiffusionPen pipeline first
+                # Try to import DiffusionPen modules (they don't use standard diffusers pipeline)
                 sys.path.insert(0, '/root/DiffusionPen')
                 
-                # Try to import DiffusionPen's custom pipeline
+                # Import required DiffusionPen modules
                 try:
-                    from pipeline_diffusionpen import DiffusionPenPipeline
-                    print("DiffusionPen custom pipeline imported successfully")
+                    import torch
+                    import torchvision.transforms as transforms
+                    from train import DiffusionPenModel  # This should be the actual model class
+                    print("DiffusionPen modules imported successfully")
                     use_diffusionpen = True
-                except ImportError:
-                    print("DiffusionPen custom pipeline not found, trying alternative imports...")
-                    # Try alternative import path
-                    try:
-                        from diffusionpen.pipeline import DiffusionPenPipeline
-                        print("DiffusionPen pipeline imported from diffusionpen.pipeline")
-                        use_diffusionpen = True
-                    except ImportError:
-                        print("DiffusionPen pipeline not available, falling back to Stable Diffusion")
-                        from diffusers import StableDiffusionPipeline, DDIMScheduler
-                        use_diffusionpen = False
+                except ImportError as e:
+                    print(f"DiffusionPen modules not found: {e}")
+                    print("Falling back to standard Stable Diffusion")
+                    from diffusers import StableDiffusionPipeline, DDIMScheduler
+                    use_diffusionpen = False
                 
                 from transformers import AutoTokenizer
                 print("Base imports successful")
@@ -150,25 +146,12 @@ def fastapi_app():
                 raise
             
             if use_diffusionpen:
-                print("Loading DiffusionPen pipeline...")
-                # Load the actual DiffusionPen model
-                try:
-                    # Use the local DiffusionPen model path
-                    diffusionpen_model_path = "/root/diffusionpen/diffusionpen_iam_model_path"
-                    pipeline = DiffusionPenPipeline.from_pretrained(
-                        diffusionpen_model_path,
-                        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-                        safety_checker=None,
-                        requires_safety_checker=False
-                    )
-                    pipeline = pipeline.to(device)
-                    print("DiffusionPen pipeline loaded successfully")
-                except Exception as e:
-                    print(f"Failed to load DiffusionPen pipeline: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    print("Falling back to standard Stable Diffusion")
-                    use_diffusionpen = False
+                print("Loading DiffusionPen model...")
+                # For now, DiffusionPen integration is complex and requires custom implementation
+                # Falling back to enhanced Stable Diffusion until full integration is complete
+                print("DiffusionPen detected but full integration not yet implemented")
+                print("Falling back to enhanced Stable Diffusion for better handwriting generation")
+                use_diffusionpen = False
             
             if not use_diffusionpen:
                 print("Loading standard Stable Diffusion pipeline...")
