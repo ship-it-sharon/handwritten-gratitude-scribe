@@ -28,7 +28,9 @@ image = (
         "timm>=0.9.0",  # Required for image encoders in DiffusionPen
         "huggingface-hub",
         "safetensors",
-        "xformers"  # For memory optimization
+        "xformers",  # For memory optimization
+        "einops>=0.6.0",  # Required for DiffusionPen
+        "ftfy>=6.1.0"  # Text processing for DiffusionPen
     ])
     .run_commands([
         # Clone DiffusionPen repository
