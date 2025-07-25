@@ -161,12 +161,12 @@ def fastapi_app():
                     )
                     pipeline = pipeline.to(device)
                     print("DiffusionPen pipeline loaded successfully")
-            except Exception as e:
-                print(f"Failed to load DiffusionPen pipeline: {e}")
-                import traceback
-                traceback.print_exc()
-                print("Falling back to standard Stable Diffusion")
-                use_diffusionpen = False
+                except Exception as e:
+                    print(f"Failed to load DiffusionPen pipeline: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    print("Falling back to standard Stable Diffusion")
+                    use_diffusionpen = False
             
             if not use_diffusionpen:
                 print("Loading standard Stable Diffusion pipeline...")
