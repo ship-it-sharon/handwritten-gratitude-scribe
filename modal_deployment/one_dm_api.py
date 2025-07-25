@@ -481,6 +481,39 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
             print(f"Saved style data to: {style_file_path}")
             print(f"Saved samples tensor to: {samples_file_path}")
             
+            # Upload tensor file to Supabase storage
+            try:
+                print(f"🔄 Uploading tensor file to Supabase storage...")
+                import requests
+                
+                # Read the tensor file
+                with open(samples_file_path, 'rb') as f:
+                    tensor_data = f.read()
+                
+                # Upload to Supabase storage
+                supabase_url = "https://lkqjlibxmsnjqaifipes.supabase.co"
+                upload_url = f"{supabase_url}/storage/v1/object/style-tensors/{embedding_id}_samples.pt"
+                
+                # Use service role key for upload
+                upload_headers = {
+                    'Authorization': f'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxrcWpsaWJ4bXNuanFhaWZpcGVzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MjI5ODI3NCwiZXhwIjoyMDY3ODc0Mjc0fQ.KqF-xQsN7Ypo0WoamM_1hM5n9PGXqXhtjUGtBUGNhBA',
+                    'Content-Type': 'application/octet-stream'
+                }
+                
+                upload_response = requests.post(upload_url, data=tensor_data, headers=upload_headers)
+                
+                if upload_response.status_code in [200, 201]:
+                    print(f"✅ Successfully uploaded tensor to Supabase storage")
+                    # Update the storage URL to point to public URL
+                    tensor_storage_url = f"{supabase_url}/storage/v1/object/public/style-tensors/{embedding_id}_samples.pt"
+                    print(f"📁 Tensor available at: {tensor_storage_url}")
+                else:
+                    print(f"⚠️ Failed to upload tensor to storage: {upload_response.status_code} - {upload_response.text}")
+                    
+            except Exception as upload_error:
+                print(f"⚠️ Error uploading tensor to storage: {upload_error}")
+                print("Continuing with local storage only...")
+            
             return embedding_id
             
         except Exception as e:
