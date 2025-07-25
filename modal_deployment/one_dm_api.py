@@ -587,12 +587,12 @@ async def generate_with_trained_model(text: str, model_id: str, model: dict, sty
             
             for style_file_path in possible_locations:
                 if os.path.exists(style_file_path):
-                try:
-                    with open(style_file_path, 'r') as f:
-                        style_data = json.load(f)
-                    print(f"✅ Loaded style data from: {style_file_path}")
-                    break
-                except Exception as e:
+                    try:
+                        with open(style_file_path, 'r') as f:
+                            style_data = json.load(f)
+                        print(f"✅ Loaded style data from: {style_file_path}")
+                        break
+                    except Exception as e:
                     print(f"Error loading style data from {style_file_path}: {e}")
                     continue
         
