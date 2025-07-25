@@ -123,40 +123,84 @@ def fastapi_app():
             # Initialize DiffusionPen model
             # Import DiffusionPen modules after adding to path
             try:
-                from diffusers import StableDiffusionPipeline, DDIMScheduler
+                # Try to import the actual DiffusionPen pipeline first
+                sys.path.insert(0, '/root/DiffusionPen')
+                
+                # Try to import DiffusionPen's custom pipeline
+                try:
+                    from pipeline_diffusionpen import DiffusionPenPipeline
+                    print("DiffusionPen custom pipeline imported successfully")
+                    use_diffusionpen = True
+                except ImportError:
+                    print("DiffusionPen custom pipeline not found, trying alternative imports...")
+                    # Try alternative import path
+                    try:
+                        from diffusionpen.pipeline import DiffusionPenPipeline
+                        print("DiffusionPen pipeline imported from diffusionpen.pipeline")
+                        use_diffusionpen = True
+                    except ImportError:
+                        print("DiffusionPen pipeline not available, falling back to Stable Diffusion")
+                        from diffusers import StableDiffusionPipeline, DDIMScheduler
+                        use_diffusionpen = False
+                
                 from transformers import AutoTokenizer
-                print("DiffusionPen imports successful")
+                print("Base imports successful")
             except ImportError as e:
                 print(f"Import error: {e}")
                 raise
             
-            # Load the base Stable Diffusion model for DiffusionPen
-            model_id = "stable-diffusion-v1-5/stable-diffusion-v1-5"
+            if use_diffusionpen:
+                print("Loading DiffusionPen pipeline...")
+                # Load the actual DiffusionPen model
+                try:
+                    pipeline = DiffusionPenPipeline.from_pretrained(
+                        "stable-diffusion-v1-5/stable-diffusion-v1-5",
+                        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+                        safety_checker=None,
+                        requires_safety_checker=False
+                    )
+                    pipeline = pipeline.to(device)
+                    print("DiffusionPen pipeline loaded successfully")
+            except Exception as e:
+                print(f"Failed to load DiffusionPen pipeline: {e}")
+                import traceback
+                traceback.print_exc()
+                print("Falling back to standard Stable Diffusion")
+                use_diffusionpen = False
             
-            # Initialize the pipeline with custom scheduler
-            scheduler = DDIMScheduler.from_pretrained(model_id, subfolder="scheduler")
+            if not use_diffusionpen:
+                print("Loading standard Stable Diffusion pipeline...")
+                # Load the base Stable Diffusion model as fallback
+                model_id = "stable-diffusion-v1-5/stable-diffusion-v1-5"
+                
+                # Initialize the pipeline with custom scheduler
+                scheduler = DDIMScheduler.from_pretrained(model_id, subfolder="scheduler")
+                
+                pipeline = StableDiffusionPipeline.from_pretrained(
+                    model_id,
+                    scheduler=scheduler,
+                    torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+                    safety_checker=None,
+                    requires_safety_checker=False
+                )
+                
+                pipeline = pipeline.to(device)
             
-            pipeline = StableDiffusionPipeline.from_pretrained(
-                model_id,
-                scheduler=scheduler,
-                torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-                safety_checker=None,
-                requires_safety_checker=False
-            )
-            
-            pipeline = pipeline.to(device)
-            
-            # Enable memory efficient attention
+            # Enable memory efficient attention for both pipelines
             pipeline.enable_attention_slicing()
             if hasattr(pipeline, 'enable_xformers_memory_efficient_attention'):
-                pipeline.enable_xformers_memory_efficient_attention()
+                try:
+                    pipeline.enable_xformers_memory_efficient_attention()
+                except Exception as e:
+                    print(f"Could not enable xformers: {e}")
             
             print(f"Pipeline loaded successfully on {device}")
             
             diffusion_model = {
                 'pipeline': pipeline,
                 'device': device,
-                'diffusionpen_path': '/root/DiffusionPen'
+                'diffusionpen_path': '/root/DiffusionPen',
+                'supports_style_embedding': use_diffusionpen
             }
             
             return diffusion_model
@@ -881,11 +925,9 @@ async def generate_with_style_embedding(text: str, style_embedding, model: dict,
         print(f"Generating handwriting with style embedding for text: '{text}'")
         print(f"Style embedding shape: {style_embedding.shape}")
         
-        # Import DiffusionPen components
-        from diffusers import StableDiffusionPipeline
-        
         pipeline = model['pipeline']
         device = model['device']
+        supports_style_embedding = model.get('supports_style_embedding', False)
         
         # Move style embedding to the correct device
         style_embedding = style_embedding.to(device)
@@ -894,20 +936,25 @@ async def generate_with_style_embedding(text: str, style_embedding, model: dict,
         prompt = f"handwritten text: {text}"
         
         with torch.no_grad():
-            # CRITICAL: Pass the style embedding to the pipeline
-            # This is what makes it use the user's handwriting style!
-            result = pipeline(
-                prompt=prompt,
-                style_emb=style_embedding,  # This is the key parameter!
-                height=128,
-                width=512,
-                num_inference_steps=30,
-                guidance_scale=7.5,
-                generator=torch.Generator(device=device).manual_seed(42)
-            )
-            
-            generated_image = result.images[0]
-            print("Successfully generated personalized handwriting with style embedding!")
+            if supports_style_embedding:
+                print("Using DiffusionPen pipeline with style embedding")
+                # Use the actual DiffusionPen pipeline that supports style embeddings
+                result = pipeline(
+                    prompt=prompt,
+                    style_emb=style_embedding,  # This is the key parameter for DiffusionPen!
+                    height=128,
+                    width=512,
+                    num_inference_steps=30,
+                    guidance_scale=7.5,
+                    generator=torch.Generator(device=device).manual_seed(42)
+                )
+                
+                generated_image = result.images[0]
+                print("Successfully generated personalized handwriting with style embedding!")
+            else:
+                print("Pipeline doesn't support style embeddings, falling back to enhanced generation")
+                # Fall back to enhanced generation since we can't use style embeddings
+                return await generate_fallback_handwriting(text, model, style_params)
         
         # Apply style-specific post-processing
         processed_image = apply_style_specific_processing(generated_image, style_params)
