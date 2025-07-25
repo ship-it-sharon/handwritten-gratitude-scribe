@@ -48,9 +48,12 @@ const Index = () => {
     if (data && !error) {
       setUserStyleModel(data);
       if (data.sample_images && Array.isArray(data.sample_images)) {
-        // If user has samples, show them first before generating
+        // Load the samples but don't change the current step if user is already on preview
         setHandwritingSamples(data.sample_images as string[]);
-        setCurrentStep('preview-samples');
+        // Only redirect to preview-samples if user is on welcome screen
+        if (currentStep === 'welcome') {
+          setCurrentStep('preview-samples');
+        }
       }
     }
   };
