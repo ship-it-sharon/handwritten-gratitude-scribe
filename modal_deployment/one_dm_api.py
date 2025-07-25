@@ -490,9 +490,10 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
                 supabase_url = os.environ.get('SUPABASE_URL', 'https://lkqjlibxmsnjqaifipes.supabase.co')
                 service_role_key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
                 
+                # Temporary fallback - replace with your actual service role key
                 if not service_role_key:
-                    print("⚠️ SUPABASE_SERVICE_ROLE_KEY not found in environment")
-                    raise Exception("Missing service role key")
+                    print("⚠️ SUPABASE_SERVICE_ROLE_KEY not found in environment, using fallback")
+                    service_role_key = "PASTE_YOUR_SERVICE_ROLE_KEY_HERE"  # Replace this with your actual key
                 
                 # Read the tensor file
                 with open(samples_file_path, 'rb') as f:
