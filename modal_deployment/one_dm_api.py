@@ -729,25 +729,47 @@ async def generate_with_model_url(text: str, model_url: str, model: dict, style_
     from PIL import Image
     
     try:
-        # Download the style embedding from the URL
-        print(f"Downloading style embedding from URL: {model_url}")
+        # Download the style embedding metadata from the URL
+        print(f"Downloading style embedding metadata from URL: {model_url}")
         response = requests.get(model_url, timeout=30)
         response.raise_for_status()
         
-        # Load the style embedding data
+        # Load the style embedding metadata
         embedding_data = response.json()
-        print(f"Loaded style embedding data: {list(embedding_data.keys())}")
+        print(f"Loaded style embedding metadata: {list(embedding_data.keys())}")
         
-        # Convert embedding back to tensor if it was saved as a list
-        if 'style_embedding' in embedding_data:
-            style_embedding = torch.tensor(embedding_data['style_embedding'])
-            print(f"Loaded style embedding tensor shape: {style_embedding.shape}")
-        else:
-            print("No style embedding found in downloaded data, using fallback")
-            return await generate_fallback_handwriting(text, model, style_params)
+        # Check if we have the embedding_id to construct the tensor file URL
+        if 'embedding_id' in embedding_data:
+            embedding_id = embedding_data['embedding_id']
+            
+            # Construct the URL for the tensor file (.pt file)
+            base_url = model_url.rsplit('/', 1)[0]  # Remove the .json filename
+            tensor_url = f"{base_url}/{embedding_id}_samples.pt"
+            
+            print(f"Attempting to download tensor from: {tensor_url}")
+            
+            # Try to download the tensor file
+            tensor_response = requests.get(tensor_url, timeout=30)
+            if tensor_response.status_code == 200:
+                # Save tensor to temporary file and load it
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.pt') as tmp_file:
+                    tmp_file.write(tensor_response.content)
+                    tmp_file.flush()
+                    
+                    # Load the tensor
+                    style_embedding = torch.load(tmp_file.name, map_location='cpu')
+                    print(f"Loaded style embedding tensor shape: {style_embedding.shape}")
+                    
+                    # Clean up temp file
+                    os.unlink(tmp_file.name)
+                    
+                    # Generate handwriting with the user's style embedding
+                    return await generate_with_style_embedding(text, style_embedding, model, style_params)
+            else:
+                print(f"Could not download tensor file: {tensor_response.status_code}")
         
-        # Generate handwriting with the user's style embedding
-        return await generate_with_style_embedding(text, style_embedding, model, style_params)
+        print("No usable style embedding found, using fallback generation")
+        return await generate_fallback_handwriting(text, model, style_params)
         
     except Exception as e:
         print(f"Error downloading/using model from URL: {e}")
