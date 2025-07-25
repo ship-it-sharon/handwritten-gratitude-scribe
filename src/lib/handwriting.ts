@@ -252,14 +252,14 @@ export const generateHandwritingStyle = async (
 
     // Handle different response types from the new backend
     if (data) {
-      if (typeof data === 'string') {
-        // Direct SVG response
-        console.log('✅ Received SVG response, length:', data.length);
-        return data;
-      } else if (data.handwritingSvg) {
-        // SVG in response object
+      if (data.handwritingSvg) {
+        // SVG in response object - this is the primary case
         console.log('✅ Received SVG in response object, length:', data.handwritingSvg.length);
         return data.handwritingSvg;
+      } else if (typeof data === 'string') {
+        // Direct SVG response (fallback)
+        console.log('✅ Received SVG response, length:', data.length);
+        return data;
       } else if (data.status) {
         // Status response (e.g., embeddings still processing)
         console.log('📊 Received status response:', data);
