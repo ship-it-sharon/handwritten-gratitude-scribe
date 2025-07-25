@@ -73,7 +73,7 @@ diffusion_model = None
     image=image,
     gpu="A100",  # A100 for best quality and performance
     timeout=900,   # 15 minutes timeout - reduced from 30 minutes to save costs
-    keep_warm=1,   # Keep one instance warm for faster response
+    min_containers=1,   # Keep one instance warm for faster response (renamed from keep_warm)
     memory=16384   # 16GB RAM - reduced from 32GB to save costs
 )
 @modal.asgi_app()
@@ -790,7 +790,7 @@ async def generate_with_trained_model(text: str, model_path: str, model: dict, s
         traceback.print_exc()
         return await generate_fallback_handwriting(text, model, style_params)
 
-async def generate_with_style_embedding(text: str, style_embedding: torch.Tensor, model: dict, style_params: dict):
+async def generate_with_style_embedding(text: str, style_embedding, model: dict, style_params: dict):
     """Generate handwriting using DiffusionPen with user's style embedding"""
     import torch
     import sys
