@@ -194,7 +194,16 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
               .update({ training_status: 'failed' })
               .eq('user_id', userId)
               .eq('training_status', 'completed')
-              .then(() => console.log('✅ Marked model for retraining'));
+              .then(() => {
+                console.log('✅ Marked model for retraining');
+                // Automatically retry generation which will trigger retraining
+                setTimeout(() => {
+                  if (samples.length > 0) {
+                    console.log('🔄 Auto-retrying generation with retraining...');
+                    generatePreview();
+                  }
+                }, 2000);
+              });
           }
         } else {
           errorMessage += error.message;
