@@ -111,7 +111,7 @@ serve(async (req) => {
         const requestPayload = {
           text: body.text,
           user_id: body.user_id,
-          model_id: modelUrl, // Pass the Supabase URL as model_id so Modal can download it
+          model_url: modelUrl, // Pass the embedding URL as model_url (not model_id)
           styleCharacteristics: body.styleCharacteristics || {},
           // Include samples as backup in case no trained model exists
           samples: samples.length > 0 ? samples.slice(0, 3) : []
@@ -120,7 +120,7 @@ serve(async (req) => {
         console.log('Making POST request to Modal API...')
         console.log('Request payload:', JSON.stringify({
           ...requestPayload,
-          model_id: requestPayload.model_id ? `${requestPayload.model_id.substring(0, 50)}...` : 'none',
+          model_url: requestPayload.model_url ? `${requestPayload.model_url.substring(0, 50)}...` : 'none',
           samples: requestPayload.samples ? `[${requestPayload.samples.length} samples]` : 'none'
         }))
         
