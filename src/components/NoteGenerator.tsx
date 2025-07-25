@@ -54,14 +54,18 @@ export const NoteGenerator = ({ onNext, handwritingSamples = [] }: NoteGenerator
       console.log('🔍 Loading samples from database for user:', user.id);
       const { data, error } = await supabase
         .from('user_style_models')
-        .select('sample_images')
+        .select('sample_images, training_status, embedding_storage_url')
         .eq('user_id', user.id)
+        .eq('training_status', 'completed')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      if (data && data.sample_images && Array.isArray(data.sample_images)) {
-        console.log('✅ Loaded samples from database:', data.sample_images.length);
+      if (data && data.sample_images && Array.isArray(data.sample_images) && data.embedding_storage_url) {
+        console.log('✅ Loaded samples from database with trained model:', data.sample_images.length);
+        setSamples(data.sample_images as string[]);
+      } else if (data && data.sample_images && Array.isArray(data.sample_images)) {
+        console.log('⚠️ Found samples but no trained model - will need retraining');
         setSamples(data.sample_images as string[]);
       } else {
         console.log('❌ No samples found in database');

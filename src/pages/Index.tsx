@@ -40,6 +40,7 @@ const Index = () => {
       .from('user_style_models')
       .select('*')
       .eq('user_id', user.id)
+      .eq('training_status', 'completed')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -66,8 +67,9 @@ const Index = () => {
       // Get the latest samples from database
       const { data: modelData, error: modelError } = await supabase
         .from('user_style_models')
-        .select('sample_images')
+        .select('sample_images, training_status, embedding_storage_url')
         .eq('user_id', user.id)
+        .eq('training_status', 'completed')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();

@@ -54,7 +54,7 @@ export const TrainingProgressDisplay = ({ userId, onTrainingComplete, onCancel }
         try {
           const { data, error } = await supabase
             .from('user_style_models')
-            .select('training_status, training_completed_at')
+            .select('training_status, training_completed_at, embedding_storage_url')
             .eq('user_id', userId)
             .single();
 
