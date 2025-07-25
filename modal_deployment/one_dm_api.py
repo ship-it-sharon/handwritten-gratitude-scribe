@@ -451,9 +451,10 @@ async def train_style_encoder(samples: List[str], model: dict, user_id: str) -> 
                 }
             }
             
-            # Generate unique embedding ID for this user's style
-            import uuid
-            embedding_id = f"style_emb_{user_id}_{uuid.uuid4().hex[:8]}"
+            # Use the timestamp-based embedding ID for consistency
+            import time
+            timestamp = int(time.time() * 1000)
+            embedding_id = f"style_emb_{user_id}_{timestamp}"
             
             # Save the style data and characteristics  
             style_data = {
