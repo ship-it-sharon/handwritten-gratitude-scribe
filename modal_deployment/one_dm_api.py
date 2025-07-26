@@ -52,12 +52,12 @@ image = (
         "mkdir -p /root/models /tmp/diffusionpen_training /tmp/diffusionpen_output",
         # Download pre-processed IAM dataset and models from Hugging Face
         "cd /root/DiffusionPen && pip install huggingface_hub",
-        # Download and permanently store IAM dataset pickle files in the image
+        # Download and permanently store IAM dataset pickle files in the image (only if they don't exist)
         "cd /root/DiffusionPen && mkdir -p saved_iam_data",
-        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='saved_iam_data/iam_words_gt.pkl', local_dir='.'); hf_hub_download(repo_id='konnik/DiffusionPen', filename='saved_iam_data/iam_lines_gt.pkl', local_dir='.'); print('IAM pickle files permanently stored in image')\"",
-        # Download required models and create directories
+        "cd /root/DiffusionPen && if [ ! -f saved_iam_data/iam_words_gt.pkl ] || [ ! -f saved_iam_data/iam_lines_gt.pkl ]; then python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='saved_iam_data/iam_words_gt.pkl', local_dir='.'); hf_hub_download(repo_id='konnik/DiffusionPen', filename='saved_iam_data/iam_lines_gt.pkl', local_dir='.'); print('IAM pickle files downloaded and stored in image')\"; else echo 'IAM pickle files already exist, skipping download'; fi",
+        # Download required models and create directories (only if they don't exist)
         "cd /root/DiffusionPen && mkdir -p ./pretrained_models ./checkpoints ./diffusionpen_iam_model_path",
-        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='diffusionpen_iam_model_path/pytorch_model.bin', local_dir='.')\" || echo 'Main model download failed'",
+        "cd /root/DiffusionPen && if [ ! -f diffusionpen_iam_model_path/pytorch_model.bin ]; then python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='diffusionpen_iam_model_path/pytorch_model.bin', local_dir='.')\" && echo 'Main model downloaded'; else echo 'Main model already exists, skipping download'; fi",
         "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='diffusionpen_iam_model_path/config.json', local_dir='.')\" || echo 'Config download failed'",
         # Fix multi-GPU model loading issue by patching torch.load calls
         "cd /root/DiffusionPen && find . -name '*.py' -exec sed -i 's/torch\\.load(\\([^,)]*\\))/torch.load(\\1, map_location=\"cuda:0\" if torch.cuda.is_available() else \"cpu\")/g' {} \\;",
