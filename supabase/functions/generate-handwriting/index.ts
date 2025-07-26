@@ -103,16 +103,17 @@ serve(async (req) => {
       try {
         console.log(`Attempting generation API call (attempt ${attempt}/${maxRetries})...`)
         
-        const modalUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/generate_handwriting'
+        const modalUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/'
         
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
         
         const requestPayload = {
+          action: "generate",
           text: body.text,
           user_id: body.user_id,
-          model_id: modelUrl, // Pass the embedding URL as model_id (Modal API expects this parameter name)
-          styleCharacteristics: body.styleCharacteristics || {},
+          model_url: modelUrl, // Pass the embedding URL directly
+          style_characteristics: body.styleCharacteristics || {},
           // Include samples as backup in case no trained model exists
           samples: samples.length > 0 ? samples.slice(0, 3) : []
         }
@@ -120,7 +121,7 @@ serve(async (req) => {
         console.log('Making POST request to Modal API...')
         console.log('Request payload:', JSON.stringify({
           ...requestPayload,
-          model_id: requestPayload.model_id ? `${requestPayload.model_id.substring(0, 50)}...` : 'none',
+          model_url: requestPayload.model_url ? `${requestPayload.model_url.substring(0, 50)}...` : 'none',
           samples: requestPayload.samples ? `[${requestPayload.samples.length} samples]` : 'none'
         }))
         
