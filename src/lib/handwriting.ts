@@ -62,9 +62,14 @@ export const checkTrainingStatus = async (userId: string, samples: (string | HTM
     return { needsTraining: true, reason: 'previous_training_failed' };
   }
   
-  if (modelData.training_status === 'pending' || modelData.training_status === 'training') {
+  if (modelData.training_status === 'training') {
     console.log('⏳ Training in progress');
     return { needsTraining: false, reason: 'training_in_progress', modelId: modelData.model_id };
+  }
+  
+  if (modelData.training_status === 'pending') {
+    console.log('📝 Training pending - needs to be started');
+    return { needsTraining: true, reason: 'training_pending' };
   }
   
   if (modelData.training_status === 'completed') {
