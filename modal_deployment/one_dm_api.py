@@ -62,9 +62,8 @@ image = (
         "cd /root/DiffusionPen && mkdir -p ./pretrained_models ./checkpoints",
         "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='diffusionpen_iam_model_path/pytorch_model.bin', local_dir='.')\" || echo 'Main model download failed'",
         "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='diffusionpen_iam_model_path/config.json', local_dir='.')\" || echo 'Config download failed'",
-        # Download IAM dataset samples that the model expects
-        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; import os; os.makedirs('iam_data/words/b01/b01-094', exist_ok=True); hf_hub_download(repo_id='konnik/DiffusionPen', filename='iam_data/words/b01/b01-094/b01-094-04-05.png', local_dir='.')\" || echo 'IAM data download failed'",
-        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; import os; os.makedirs('iam_data/words/m04/m04-152', exist_ok=True); hf_hub_download(repo_id='konnik/DiffusionPen', filename='iam_data/words/m04/m04-152/m04-152-01-11.png', local_dir='.')\" || echo 'IAM data m04 download failed'",
+        # Download the entire IAM dataset directory structure
+        "cd /root/DiffusionPen && python -c \"from huggingface_hub import snapshot_download; import os; snapshot_download(repo_id='konnik/DiffusionPen', allow_patterns='iam_data/**', local_dir='.')\" || echo 'IAM dataset download failed'",
         # Fix multi-GPU model loading issue by patching torch.load calls
         "cd /root/DiffusionPen && find . -name '*.py' -exec sed -i 's/torch\\.load(\\([^,)]*\\))/torch.load(\\1, map_location=\"cuda:0\" if torch.cuda.is_available() else \"cpu\")/g' {} \\;",
         # Set permissions
