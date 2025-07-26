@@ -187,8 +187,10 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
           
           // Force retraining by clearing the cached model status
           if (userId) {
-            console.log('🔄 Clearing cached model due to generation failure...');
-            // We'll trigger a retraining on next attempt by marking current model as failed
+            console.log('🔄 Generation failed, manual retry required');
+            // DISABLED AUTO-RETRY TO PREVENT GPU COST RUNAWAY
+            // User must manually click "Generate Preview" to retry
+            /* 
             supabase
               .from('user_style_models')
               .update({ training_status: 'failed' })
@@ -196,7 +198,6 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
               .eq('training_status', 'completed')
               .then(() => {
                 console.log('✅ Marked model for retraining');
-                // Automatically retry generation which will trigger retraining
                 setTimeout(() => {
                   if (samples.length > 0) {
                     console.log('🔄 Auto-retrying generation with retraining...');
@@ -204,6 +205,7 @@ export const HandwritingPreview = ({ text, samples, onStyleChange }: Handwriting
                   }
                 }, 2000);
               });
+            */
           }
         } else {
           errorMessage += error.message;
