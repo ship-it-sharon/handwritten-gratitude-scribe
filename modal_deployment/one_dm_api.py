@@ -67,15 +67,25 @@ image = (
 import re
 with open('train.py', 'r') as f:
     content = f.read()
-# Fix torch.load calls to include map_location parameter
+
+# Fix torch.load calls that don't already have map_location
+# First, handle cases where map_location is not present
 content = re.sub(
-    r'torch\.load\(([^)]+)\)',
-    r'torch.load(\1, map_location=\"cuda\" if torch.cuda.is_available() else \"cpu\")',
+    r'torch\.load\(([^,)]+)\)(?!\s*,\s*map_location)',
+    r'torch.load(\1, map_location=args.device if hasattr(args, \"device\") else \"cuda:0\" if torch.cuda.is_available() else \"cpu\")',
     content
 )
+
+# Also fix any torch.load calls that might use f-strings or complex paths
+content = re.sub(
+    r'torch\.load\(f[\'\"]{([^}]+)}[\'\"]\)(?!\s*,\s*map_location)',
+    r'torch.load(f\"\1\", map_location=args.device if hasattr(args, \"device\") else \"cuda:0\" if torch.cuda.is_available() else \"cpu\")',
+    content
+)
+
 with open('train.py', 'w') as f:
     f.write(content)
-print('Patched train.py for multi-GPU compatibility')
+print('Patched train.py torch.load calls with map_location')
 " """,
         # Set permissions
         "cd /root/DiffusionPen && find . -name '*.py' -exec chmod +x {} \\;",
