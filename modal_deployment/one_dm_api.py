@@ -62,21 +62,6 @@ image = (
         "cd /root/DiffusionPen && mkdir -p ./pretrained_models ./checkpoints",
         "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='diffusionpen_iam_model_path/pytorch_model.bin', local_dir='.')\" || echo 'Main model download failed'",
         "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='diffusionpen_iam_model_path/config.json', local_dir='.')\" || echo 'Config download failed'",
-        # Fix multi-GPU model loading issue by patching train.py with Python
-        """cd /root/DiffusionPen && python3 -c "
-import re
-with open('train.py', 'r') as f:
-    content = f.read()
-# Fix the ema_ckpt.pt line that's missing map_location
-content = re.sub(
-    r'ema_model\.load_state_dict\(torch\.load\(f\'{args\.save_path}/models/ema_ckpt\.pt\'\)\)',
-    'ema_model.load_state_dict(torch.load(f\\'{args.save_path}/models/ema_ckpt.pt\\', map_location=args.device))',
-    content
-)
-with open('train.py', 'w') as f:
-    f.write(content)
-print('Patched train.py for multi-GPU compatibility')
-" """,
         # Set permissions
         "cd /root/DiffusionPen && find . -name '*.py' -exec chmod +x {} \\;",
         "cd /root/DiffusionPen && ls -la || echo 'DiffusionPen contents:'"
