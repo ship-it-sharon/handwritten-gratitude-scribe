@@ -193,11 +193,11 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
     // Call Modal API for actual training
     console.log('Making request to Modal training API...');
     
-    const modalApiUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run/';
-    console.log('Modal API URL:', modalApiUrl);
+    const modalApiUrl = 'https://ship-it-sharon--diffusionpen-handwriting-fastapi-app.modal.run';
+    const trainEndpoint = `${modalApiUrl}/train_style`;
+    console.log('Modal API URL:', trainEndpoint);
     
     const requestBody = {
-      action: "train_style",
       samples: samples.slice(0, 5), // Limit to 5 samples for training
       user_id: userId,
       model_id: modelId
@@ -208,7 +208,7 @@ async function startTrainingProcess(samples: string[], userId: string, modelId: 
       samples: `${requestBody.samples.length} samples`
     });
 
-    const response = await fetch(modalApiUrl, {
+    const response = await fetch(trainEndpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
