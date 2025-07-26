@@ -433,6 +433,7 @@ async def train_style_with_subprocess(samples: List[str], model: dict, user_id: 
 async def generate_with_subprocess(text: str, model: dict, style_params: dict):
     """Generate handwriting using DiffusionPen's train.py in sampling mode"""
     try:
+        import torch
         diffusionpen_path = model['diffusionpen_path']
         
         print(f"=== GENERATING WITH DIFFUSIONPEN SUBPROCESS ===")
@@ -443,6 +444,10 @@ async def generate_with_subprocess(text: str, model: dict, style_params: dict):
         output_dir = f"/tmp/diffusionpen_output_{generation_id}"
         os.makedirs(output_dir, exist_ok=True)
         
+        # Detect available device
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"Using device: {device}")
+        
         # Try DiffusionPen generation command from the README
         cmd = [
             'python', 'train.py',
@@ -450,7 +455,8 @@ async def generate_with_subprocess(text: str, model: dict, style_params: dict):
             '--style_path', './style_models/iam_style_diffusionpen.pth',
             '--train_mode', 'sampling',
             '--sampling_mode', 'single_sampling',
-            '--stable_dif_path', 'runwayml/stable-diffusion-v1-5'
+            '--stable_dif_path', 'runwayml/stable-diffusion-v1-5',
+            '--device', device
         ]
         
         print(f"Running DiffusionPen generation: {' '.join(cmd)}")
