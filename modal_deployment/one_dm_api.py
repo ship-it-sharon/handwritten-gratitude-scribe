@@ -52,9 +52,9 @@ image = (
         "mkdir -p /root/models /tmp/diffusionpen_training /tmp/diffusionpen_output",
         # Download pre-processed IAM dataset and models from Hugging Face
         "cd /root/DiffusionPen && pip install huggingface_hub",
-        # Download and permanently store IAM dataset pickle files in the image (only if they don't exist)
+        # Download and permanently store IAM dataset .pt files in the image (only if they don't exist)
         "cd /root/DiffusionPen && mkdir -p saved_iam_data",
-        "cd /root/DiffusionPen && if [ ! -f saved_iam_data/iam_words_gt.pkl ] || [ ! -f saved_iam_data/iam_lines_gt.pkl ]; then python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='saved_iam_data/iam_words_gt.pkl', local_dir='.'); hf_hub_download(repo_id='konnik/DiffusionPen', filename='saved_iam_data/iam_lines_gt.pkl', local_dir='.'); print('IAM pickle files downloaded and stored in image')\"; else echo 'IAM pickle files already exist, skipping download'; fi",
+        "cd /root/DiffusionPen && if [ ! -f saved_iam_data/test_word_IAM.pt ] || [ ! -f saved_iam_data/train_word_IAM.pt ]; then python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='saved_iam_data/test_word_IAM.pt', local_dir='.'); hf_hub_download(repo_id='konnik/DiffusionPen', filename='saved_iam_data/train_word_IAM.pt', local_dir='.'); print('IAM dataset files downloaded and stored in image')\"; else echo 'IAM dataset files already exist, skipping download'; fi",
         # Download required models and create directories (only if they don't exist)
         "cd /root/DiffusionPen && mkdir -p ./pretrained_models ./checkpoints ./diffusionpen_iam_model_path",
         "cd /root/DiffusionPen && if [ ! -f diffusionpen_iam_model_path/pytorch_model.bin ]; then python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='diffusionpen_iam_model_path/pytorch_model.bin', local_dir='.')\" && echo 'Main model downloaded'; else echo 'Main model already exists, skipping download'; fi",
