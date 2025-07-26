@@ -444,22 +444,19 @@ async def generate_with_subprocess(text: str, model: dict, style_params: dict):
         output_dir = f"/tmp/diffusionpen_output_{generation_id}"
         os.makedirs(output_dir, exist_ok=True)
         
-        # Detect available device
-        if torch.cuda.is_available():
-            device = "cuda:0"  # Specify GPU index
-        else:
-            device = "cpu:0"   # Include index for consistency
+        # Detect available device (for logging only)
+        import torch
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"Using device: {device}")
         
-        # Try DiffusionPen generation command from the README
+        # Use the exact command from DiffusionPen documentation (no --device parameter)
         cmd = [
             'python', 'train.py',
             '--save_path', './diffusionpen_iam_model_path',
             '--style_path', './style_models/iam_style_diffusionpen.pth',
             '--train_mode', 'sampling',
             '--sampling_mode', 'single_sampling',
-            '--stable_dif_path', 'runwayml/stable-diffusion-v1-5',
-            '--device', device
+            '--stable_dif_path', 'runwayml/stable-diffusion-v1-5'
         ]
         
         print(f"Running DiffusionPen generation: {' '.join(cmd)}")
