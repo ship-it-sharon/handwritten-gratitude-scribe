@@ -37,7 +37,13 @@ image = (
         "einops>=0.6.0",
         "ftfy>=6.1.0",
         "wandb",
-        "omegaconf"
+        "omegaconf",
+        "hydra-core",
+        "tqdm",
+        "pyyaml",
+        "packaging",
+        "tensorboard",
+        "pytorch-lightning"
     ])
     .run_commands([
         # Clone DiffusionPen repository
