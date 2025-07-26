@@ -52,18 +52,12 @@ image = (
         "mkdir -p /root/models /tmp/diffusionpen_training /tmp/diffusionpen_output",
         # Download pre-processed IAM dataset and models from Hugging Face
         "cd /root/DiffusionPen && pip install huggingface_hub",
-        # Download the complete DiffusionPen repository with datasets and models
-        "cd /root/DiffusionPen && python -c \"from huggingface_hub import snapshot_download; snapshot_download(repo_id='konnik/DiffusionPen', local_dir='./datasets_and_models')\"",
-        # Create the expected directory structure and move files
-        "cd /root/DiffusionPen && cp -r ./datasets_and_models/saved_iam_data ./saved_iam_data || mkdir -p ./saved_iam_data",
-        "cd /root/DiffusionPen && cp -r ./datasets_and_models/style_models ./style_models || mkdir -p ./style_models", 
-        "cd /root/DiffusionPen && cp -r ./datasets_and_models/diffusionpen_iam_model_path ./diffusionpen_iam_model_path || mkdir -p ./diffusionpen_iam_model_path",
-        # Download required models
-        "cd /root/DiffusionPen && mkdir -p ./pretrained_models ./checkpoints",
+        # Download pickle files from HuggingFace for IAM dataset
+        "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; import pickle; import os; hf_hub_download(repo_id='konnik/DiffusionPen', filename='saved_iam_data/iam_words_gt.pkl', local_dir='.'); hf_hub_download(repo_id='konnik/DiffusionPen', filename='saved_iam_data/iam_lines_gt.pkl', local_dir='.'); print('Downloaded IAM pickle files')\" || echo 'IAM pickle download failed'",
+        # Download required models and create directories
+        "cd /root/DiffusionPen && mkdir -p ./pretrained_models ./checkpoints ./diffusionpen_iam_model_path",
         "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='diffusionpen_iam_model_path/pytorch_model.bin', local_dir='.')\" || echo 'Main model download failed'",
         "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='diffusionpen_iam_model_path/config.json', local_dir='.')\" || echo 'Config download failed'",
-        # Create dummy IAM dataset structure to prevent file not found errors
-        "cd /root/DiffusionPen && python -c \"import os; from PIL import Image; dirs=['b01/b01-094', 'm04/m04-152', 'c04/c04-028', 'f02/f02-036', 'a01/a01-000', 'a01/a01-001', 'a01/a01-002']; [os.makedirs(f'iam_data/words/{d}', exist_ok=True) for d in dirs]; [Image.new('RGB', (100, 50), 'white').save(f'iam_data/words/{d}/dummy.png') for d in dirs]; [os.system(f'find iam_data/words/{d.split(\"/\")[0]} -name \"dummy.png\" -exec cp {{}} {{}}/../{d.split(\"/\")[1]}-04-05.png \\; -exec cp {{}} {{}}/../{d.split(\"/\")[1]}-01-11.png \\; -exec cp {{}} {{}}/../{d.split(\"/\")[1]}-06-10.png \\; -exec cp {{}} {{}}/../{d.split(\"/\")[1]}-04-06.png \\;') for d in dirs]\" || echo 'IAM dummy creation failed'",
         # Fix multi-GPU model loading issue by patching torch.load calls
         "cd /root/DiffusionPen && find . -name '*.py' -exec sed -i 's/torch\\.load(\\([^,)]*\\))/torch.load(\\1, map_location=\"cuda:0\" if torch.cuda.is_available() else \"cpu\")/g' {} \\;",
         # Set permissions
