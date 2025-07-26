@@ -62,6 +62,21 @@ image = (
         "cd /root/DiffusionPen && mkdir -p ./pretrained_models ./checkpoints",
         "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='diffusionpen_iam_model_path/pytorch_model.bin', local_dir='.')\" || echo 'Main model download failed'",
         "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='diffusionpen_iam_model_path/config.json', local_dir='.')\" || echo 'Config download failed'",
+        # Fix multi-GPU model loading issue by adding map_location to torch.load calls
+        """cd /root/DiffusionPen && python3 -c "
+import re
+with open('train.py', 'r') as f:
+    content = f.read()
+# Fix torch.load calls to include map_location parameter
+content = re.sub(
+    r'torch\.load\(([^)]+)\)',
+    r'torch.load(\1, map_location=\"cuda\" if torch.cuda.is_available() else \"cpu\")',
+    content
+)
+with open('train.py', 'w') as f:
+    f.write(content)
+print('Patched train.py for multi-GPU compatibility')
+" """,
         # Set permissions
         "cd /root/DiffusionPen && find . -name '*.py' -exec chmod +x {} \\;",
         "cd /root/DiffusionPen && ls -la || echo 'DiffusionPen contents:'"
