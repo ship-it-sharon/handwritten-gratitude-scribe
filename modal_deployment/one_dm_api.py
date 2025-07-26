@@ -62,6 +62,8 @@ image = (
         "cd /root/DiffusionPen && mkdir -p ./pretrained_models ./checkpoints",
         "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='diffusionpen_iam_model_path/pytorch_model.bin', local_dir='.')\" || echo 'Main model download failed'",
         "cd /root/DiffusionPen && python -c \"from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='konnik/DiffusionPen', filename='diffusionpen_iam_model_path/config.json', local_dir='.')\" || echo 'Config download failed'",
+        # Fix multi-GPU model loading issue by patching torch.load calls
+        "cd /root/DiffusionPen && find . -name '*.py' -exec sed -i 's/torch\\.load(\\([^,)]*\\))/torch.load(\\1, map_location=\"cuda:0\" if torch.cuda.is_available() else \"cpu\")/g' {} \\;",
         # Set permissions
         "cd /root/DiffusionPen && find . -name '*.py' -exec chmod +x {} \\;",
         "cd /root/DiffusionPen && ls -la || echo 'DiffusionPen contents:'"
