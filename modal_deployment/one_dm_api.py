@@ -35,7 +35,8 @@ image = (
         "safetensors",
         "xformers",
         "einops>=0.6.0",
-        "ftfy>=6.1.0"
+        "ftfy>=6.1.0",
+        "wandb"
     ])
     .run_commands([
         # Clone DiffusionPen repository
