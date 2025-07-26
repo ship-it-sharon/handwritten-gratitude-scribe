@@ -445,7 +445,10 @@ async def generate_with_subprocess(text: str, model: dict, style_params: dict):
         os.makedirs(output_dir, exist_ok=True)
         
         # Detect available device
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if torch.cuda.is_available():
+            device = "cuda:0"  # Specify GPU index
+        else:
+            device = "cpu:0"   # Include index for consistency
         print(f"Using device: {device}")
         
         # Try DiffusionPen generation command from the README
