@@ -144,8 +144,15 @@ const Index = () => {
   };
 
   const handleLogout = async () => {
-    await signOut();
-    navigate("/auth");
+    console.log('🔴 Logout clicked');
+    try {
+      console.log('🔴 Calling signOut()');
+      await signOut();
+      console.log('🔴 SignOut completed, navigating to auth');
+      navigate("/auth");
+    } catch (error) {
+      console.error('🔴 Logout error:', error);
+    }
   };
 
   const regenerateFromSavedSamples = () => {
