@@ -22,7 +22,9 @@ const Index = () => {
   const [previewText, setPreviewText] = useState("Best wishes: sincerely yours (always & forever)");
 
   useEffect(() => {
+    console.log('🔍 Auth state changed:', { user: !!user, loading });
     if (!loading && !user) {
+      console.log('🔍 No user, navigating to auth');
       navigate("/auth");
     }
   }, [user, loading, navigate]);
@@ -34,6 +36,7 @@ const Index = () => {
   }, [user]);
 
   const loadUserStyleModel = async () => {
+    console.log('🔍 loadUserStyleModel called, user:', !!user, 'currentStep:', currentStep);
     if (!user) return;
     
     const { data, error } = await supabase
@@ -45,13 +48,17 @@ const Index = () => {
       .limit(1)
       .maybeSingle();
 
+    console.log('🔍 loadUserStyleModel result:', { data: !!data, error, currentStep });
+
     if (data && !error) {
       setUserStyleModel(data);
       if (data.sample_images && Array.isArray(data.sample_images)) {
+        console.log('🔍 Found samples, currentStep:', currentStep);
         // Load the samples but don't change the current step if user is already on preview
         setHandwritingSamples(data.sample_images as string[]);
         // Only redirect to preview-samples if user is on welcome screen
         if (currentStep === 'welcome') {
+          console.log('🔍 Redirecting to preview-samples');
           setCurrentStep('preview-samples');
         }
       }
