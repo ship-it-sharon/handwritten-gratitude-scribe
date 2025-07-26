@@ -18,7 +18,7 @@ image = (
     .apt_install("git", "wget", "libgl1-mesa-glx", "libglib2.0-0")
     .pip_install([
         "fastapi[standard]",
-        "torch>=2.0.0",
+        "torch>=2.0.0,<2.6",
         "torchvision",
         "transformers>=4.30.0",
         "diffusers>=0.20.0",
