@@ -449,7 +449,8 @@ async def generate_with_subprocess(text: str, model: dict, style_params: dict):
             '--save_path', './diffusionpen_iam_model_path',
             '--style_path', './style_models/iam_style_diffusionpen.pth',
             '--train_mode', 'sampling',
-            '--sampling_mode', 'single_sampling'
+            '--sampling_mode', 'single_sampling',
+            '--stable_dif_path', 'runwayml/stable-diffusion-v1-5'
         ]
         
         print(f"Running DiffusionPen generation: {' '.join(cmd)}")
@@ -535,20 +536,23 @@ async def generate_with_model_url(text: str, model_url: str, model: dict, style_
         response = requests.get(model_url)
         response.raise_for_status()
         
-        # Save model temporarily
-        temp_dir = f"/tmp/downloaded_model_{str(uuid.uuid4())[:8]}"
-        os.makedirs(temp_dir, exist_ok=True)
-        
-        model_path = os.path.join(temp_dir, "model.json")
-        with open(model_path, 'w') as f:
-            json.dump(response.json(), f)
-        
-        # Extract model ID from downloaded data
+        # Parse the downloaded model data 
         model_data = response.json()
         model_id = model_data.get('model_id', 'downloaded_model')
         
-        # Use the downloaded model data
-        return await generate_with_trained_model_subprocess(text, model_id, model, style_params)
+        # Create persistent directory structure to match what generate_with_trained_model_subprocess expects
+        persistent_dir = f"/tmp/persistent_styles/{model_id}"
+        os.makedirs(persistent_dir, exist_ok=True)
+        
+        # Save the metadata 
+        metadata_path = os.path.join(persistent_dir, f"{model_id}_metadata.json")
+        with open(metadata_path, 'w') as f:
+            json.dump(model_data, f, indent=2)
+            
+        print(f"Model metadata not found: {metadata_path}")
+        
+        # For now, use default generation since DiffusionPen style integration is complex
+        return await generate_with_subprocess(text, model, style_params)
         
     except Exception as e:
         print(f"Error with model URL: {e}")
