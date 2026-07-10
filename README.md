@@ -8,4 +8,10 @@ closest match), and have them printed and mailed for you — for weddings,
 showers, birthdays, and every occasion where gratitude is expected but time
 is short.
 
-Product plan and architecture docs to come before any code is written.
+## Docs
+
+- [Product plan](docs/PRODUCT_PLAN.md) — vision, decisions, features, tiers, phases
+- [Architecture](docs/ARCHITECTURE.md) — planned system shape (pre-code)
+- [Fulfillment research](docs/FULFILLMENT_RESEARCH.md) — print vs. real-pen vendors, font flexibility findings
+
+No code yet — planning first, on purpose.
