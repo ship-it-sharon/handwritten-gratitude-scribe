@@ -1,8 +1,9 @@
 # Fulfillment & Font Flexibility Research
 
-_Researched 2026-07-10. Question: can we offer the SAME font library across
-all three tiers (print-at-home / printed / pen-written), or do pen-robot
-vendors significantly limit font options?_
+_Researched 2026-07-10, updated 2026-07-11 with the matching-envelope
+requirement. Questions: (1) can we offer the SAME font library across all
+three tiers (print-at-home / printed / pen-written)? (2) which printed-tier
+vendor can address the envelope in the same handwriting style as the note?_
 
 ## TL;DR
 
@@ -66,24 +67,83 @@ even though MVP only needs outline. Retrofit is possible but per-font work.
   own PDFs via Lob/PostGrid preserves font freedom — prefer that unless
   unit economics say otherwise.
 
-### Lob / PostGrid (digital print-and-mail APIs)
-- We submit fully-rendered artwork (PDF/HTML), so **our fonts, our
-  layouts, our realism tricks** — no font constraint at all. Photo-front
-  cards and inserts supportable. This is the MVP fulfillment lane.
-- Bake-off criteria: notecard + envelope quality, folded card support,
-  photo print quality, per-piece cost at volume, address printing on
-  envelopes (handwriting font on the envelope is a believability lever),
-  turnaround time, API ergonomics, webhook quality.
+### Lob / PostGrid (digital print-and-mail APIs) — ELIMINATED for the card product
+- We submit fully-rendered artwork (PDF/HTML), so full font freedom **on
+  the piece itself** — but the piece shapes are wrong. Product lines are
+  postcards, letters, self-mailers, checks: business direct mail.
+- **Envelope findings (the disqualifier):** Lob letters ship in #10
+  window envelopes (address shows through a window, printed on the
+  letter) or via a custom-envelope program that is enterprise-gated,
+  uses pre-printed envelope stock (6-month adhesive expiry, batch
+  ordered) — not per-piece envelope artwork, and not recipient
+  addressing in an arbitrary handwriting font. PostGrid's template
+  flexibility applies to the letter, not the envelope; addressing is
+  standardized for USPS automation. A window envelope on a wedding
+  thank-you reads as junk mail and gets tossed.
+- Keep on file as infrastructure for any future *letter-shaped* product,
+  and as a reference for API/webhook design quality.
+
+### Scribeless (AI-handwriting digital print)
+- Handwritten-style notes, cards, letters, postcards via CSV, CRM
+  integrations, or API. US/UK/Canada production. Premium stock.
+- Marketing mentions images, **trackable QR codes**, and text in
+  **custom brand fonts** — the most font-flexible claim of any digital
+  vendor found. Whether "custom brand fonts" extends to the handwriting
+  itself and the envelope needs a sales call to confirm.
+- Business-oriented; per-piece pricing at consumer scale TBD.
+
+### Print.one (folded greeting cards API)
+- Square folded cards with matching envelopes — right form factor — but
+  envelopes use a round address **window**, which fails the matching-
+  envelope requirement. EU-centric. Pass, but useful as a format
+  reference.
+
+### IgnitePost (real pen, robots)
+- 5x7 folded greeting cards on 100 lb stock by default, 12+ handwriting
+  styles or custom mimic, real pen and ink, API available. Smaller than
+  Handwrytten/Simply Noted; potentially more flexible to partner with.
+  Candidate for the pen tier alongside the big two.
+
+## Envelope analysis (added 2026-07-11)
+
+Requirement: recipient (and return) address on the envelope in the same
+handwriting style as the note interior.
+
+- **Generic direct-mail APIs cannot do this** — their envelope is a
+  standardized carrier optimized for USPS automation discounts, not a
+  design surface. This is structural, not a missing feature: their unit
+  economics depend on machine-readable address blocks.
+- **Handwriting-specialist vendors do this natively** — the addressed
+  envelope in the matching style IS their product (Thanks.io notecards,
+  Handwrytten/Simply Noted/IgnitePost pen-written envelopes). Simply
+  Noted sells handwritten envelopes as a standalone service.
+- **USPS deliverability note:** handwriting-font addresses are fine
+  (USPS OCRs real handwriting all day), but may forgo presort automation
+  discounts — priced into specialist vendors' per-piece rates.
+- **Postage authenticity is the sibling issue:** printed indicia/meter
+  marks read as corporate; real stamps read as personal. Pen vendors use
+  real stamps. Ask every printed-tier candidate what postage looks like.
+- **Return address** should render in the same style (or a clean serif —
+  test both); also doubles as the QR/voice-message brand moment on the
+  flap if we want it.
 
 ## Strategy
 
-1. **MVP:** Lob-class digital print behind a `FulfillmentProvider`
-   abstraction. We own the PDF renderer; the full font library works
-   everywhere. Print-at-home PDF ships from the same renderer.
+1. **MVP:** a handwriting-specialist digital printer (shortlist:
+   Thanks.io, Scribeless) behind a `FulfillmentProvider` abstraction.
+   Accept that the *mailed* tiers launch constrained to the vendor's
+   style catalog; our full font library still powers print-at-home and
+   previews, with best-match mapping onto the vendor's catalog for
+   mailed cards. Validate demand before owning more of the stack.
 2. **In parallel (business development, not code):**
-   - Ask Handwrytten + Simply Noted: can you onboard N of our licensed
-     fonts as custom styles? Per-style cost, timeline, exclusivity, API
-     addressing?
+   - Sales calls with Thanks.io + Scribeless: custom font onboarding?
+     QR placement control? photo-front + photo-insert support? postage
+     type (stamp vs indicia)? envelope return-address control? white-
+     label packaging? consumer-volume pricing tiers?
+   - Ask Handwrytten + Simply Noted + IgnitePost: can you onboard N of
+     our licensed fonts as custom styles? Per-style cost, timeline,
+     exclusivity, API addressing? (Feeds the pen tier AND pressure-tests
+     the custom-onboarding market.)
    - License-check the launch library for stroke-format availability.
 3. **Post-MVP pen tier, in order of preference:**
    a. Pen vendor onboards our fonts → true unified library.
@@ -92,6 +152,11 @@ even though MVP only needs outline. Retrofit is possible but per-font work.
       style" UX, clearly labeled.
    c. Long-term/if volume justifies: own plotter fleet (AxiDraw/NextDraw
       class) using our stroke fonts — maximum control, real ops burden.
+4. **Long-term full-control option: in-house micro-fulfillment.**
+   Digital press + envelope printer + real stamps (Postable's original
+   model). Unlocks the entire font library on card AND envelope, real
+   stamps, premium stock, photo inserts — at the cost of becoming an
+   operations company. Revisit when volume and margin data exist.
 
 ## Answer to the founding question
 

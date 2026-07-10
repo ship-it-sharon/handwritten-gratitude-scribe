@@ -116,8 +116,14 @@ stroke-font onboarding with a pen vendor.
   optional expiry, tasteful presentation.
 
 ### Fulfillment
-- MVP: one digital print-and-mail API partner (Lob-class) behind a vendor
-  abstraction; print-ready PDF renderer we own.
+- **Envelope requirement (decided 2026-07-11):** the envelope must be
+  addressed in the same handwriting style as the note. A window envelope
+  or machine-format address block reads as junk mail and breaks the
+  product promise. This rules out generic direct-mail APIs (Lob,
+  PostGrid) for the card product — see `docs/FULFILLMENT_RESEARCH.md`.
+- MVP: one handwriting-specialist print partner (Thanks.io-class) behind
+  a vendor abstraction; print-ready assets rendered/parameterized by us
+  where the vendor allows.
 - Print-at-home PDF export as free tier and fallback.
 - Post-MVP: pen-written premium tier via robotic vendor or (long-term)
   own plotter fleet. See `docs/FULFILLMENT_RESEARCH.md`.
@@ -172,11 +178,16 @@ stroke-font onboarding with a pen vendor.
 ## Open questions
 
 - Which print partner wins on notecard quality + photo support + unit
-  economics? (Bake-off: Lob vs PostGrid vs Thanks.io for the printed tier.)
+  economics? (Narrowed 2026-07-11: Lob/PostGrid eliminated by the
+  matching-envelope requirement; shortlist is Thanks.io vs Scribeless,
+  with in-house micro-fulfillment as the long-term full-control path.
+  Details in `docs/FULFILLMENT_RESEARCH.md`.)
 - Pen-vendor font flexibility: will Handwrytten / Simply Noted onboard
   *our* fonts as custom styles, and at what per-font cost? (Outreach task.)
 - Font licensing: which foundries allow commercial rendering-as-a-service
   use, and which offer stroke + outline dual formats?
 - QR audio retention policy (forever? 1 year? user-controlled?).
-- Envelope treatment: printed recipient addressing in the same handwriting
-  font? Return address handling? (Big believability lever.)
+- Postage authenticity: real stamps vs. printed indicia. Metered/indicia
+  postage reads as business mail; pen-robot vendors use real stamps.
+  Where does our printed-tier vendor land, and does it matter enough to
+  drive vendor choice?
