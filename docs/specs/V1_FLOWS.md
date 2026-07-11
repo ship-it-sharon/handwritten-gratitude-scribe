@@ -86,19 +86,40 @@ mode through the first generation = stronger hook) — or gate everything.
 - **PM question:** per-event or per-recipient-group tone? (Grandma gets
   formal, college friends get playful — V1 or V1.1?)
 
-### S7. Generate & review — THE screen
-**Job:** review 80 notes in 15 minutes and feel in control the whole time.
-- Batch generation runs with visible progress; cards become reviewable
-  as they finish (no waiting for the whole batch)
-- One card at a time: recipient context on top, note below, rendered in
-  her chosen handwriting (preview)
-- Actions: **Approve** (primary, fast) / **Edit** (inline text edit) /
-  **Redo** (regenerate; optional one-line steer like "mention the beach")
-- Batch-level guarantee: structural variety across notes (no two
-  identical openers/closers)
-- Progress bar: 34 of 80 approved
-- **PM questions:** approve-all-remaining button — empowering or
-  dangerous? Should edits retrain the batch's voice on the fly?
+### S7. The card studio — THE screen (revised 2026-07-11)
+**Job:** one card at a time, with the user present at each card's
+creation. She co-writes every card; nothing is mass-produced.
+
+**Decision (2026-07-11):** no mass auto-generation. Cards are generated
+**case-by-case**, in a per-card flow, and **every card requires an
+explicit sign-off** before it can be printed. There is no
+"approve all" button — sign-off is individual, always. (This answers
+the earlier PM question: approve-all is out.)
+
+Per-card flow:
+1. Card opens with the recipient's context (gift, relationship, her
+   notes-to-self) visible — she's *thinking about this person* now
+2. She can add a last thought before generating (optional, one line or
+   voice-to-text later)
+3. Draft appears, rendered in her handwriting style
+4. She shapes it: **Edit** (inline) / **Redo** (with an optional steer
+   like "mention the beach") / adjust
+5. **Sign off** (primary action) — recorded per card with timestamp;
+   this is the gate to print. Then the next card slides in.
+- Progress: "34 of 80 signed off"; fully resumable across sessions —
+  a wedding batch is expected to span evenings, and returning mid-batch
+  must feel seamless
+- Variety guarantee still holds across the event: generation remembers
+  what's been used so no two cards share openers/closers
+- Performance nuance (invisible to her): the *next* card's draft may be
+  quietly prefetched while she reviews the current one, so the flow
+  never waits — but never more than one ahead, and a prefetched draft
+  is discarded unseen if she changes tone/settings. The experience is
+  one-at-a-time; the prefetch is only there so it's a *snappy*
+  one-at-a-time.
+- **PM questions:** should her edits teach the generator mid-batch
+  (card 30 starts sounding more like her card-5 edits)? Target pace:
+  is ~45–90 seconds per card the right feel — present but not slow?
 
 ### S8. Handwriting
 **Job:** "that looks like MY writing" (or at least: unmistakably human).
@@ -127,6 +148,8 @@ mode through the first generation = stronger hook) — or gate everything.
 
 ### S10. Checkout
 **Job:** clear price, no surprises, confidence everything is correct.
+- **Only signed-off cards can enter an order** — hard gate, no
+  exceptions. Un-signed cards are listed as "still in the studio."
 - Order summary: N cards × tier price, volume discount applied and
   *shown* ("You saved $12"), any upsells later
 - Final address confirmation pass (anything still ⚠ gets fixed here)

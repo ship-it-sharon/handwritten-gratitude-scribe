@@ -138,11 +138,18 @@ stroke-font onboarding with a pen vendor.
 - LLM-generated (Claude) from: occasion, gift, relationship, tone dial
   (warm / playful / formal), and optional samples of her past writing so
   the *voice* matches, not just the handwriting.
+- **Case-by-case, never mass-produced (decided 2026-07-11):** cards are
+  generated one at a time in a per-card studio flow, with the user
+  present at each card's creation — adding a thought, editing, steering.
+  **Every card requires an individual, recorded sign-off before print;
+  there is no approve-all.** She co-writes each card; that's what makes
+  them honestly hers.
 - **Batch variety:** across an 80-note wedding batch, no two guests who
-  compare cards should find identical sentences. Structural variation is a
-  hard requirement of the generator, not a nice-to-have.
-- **Fast editing:** swipe through drafts, tap-to-regenerate a sentence,
-  bulk approve. Target: 80 notes reviewed in ~15 minutes.
+  compare cards should find identical sentences. Generation remembers
+  what it has used across the event.
+- **Pace target:** ~45–90 seconds per card — present, not slow; a
+  wedding batch spans evenings, so mid-batch resumability is
+  first-class.
 - Length always constrained to fit the chosen card layout.
 
 ### Handwriting

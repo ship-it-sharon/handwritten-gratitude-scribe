@@ -102,8 +102,13 @@ backend/
 - **Rendering correctness:** the PDF is the product. Golden-file tests on
   renderer output; vendor spec conformance (bleed, safe area, DPI) tested
   per adapter.
-- **Batch UX performance:** generation for 80+ notes runs as a queued job
-  with streaming progress, not a single blocking request.
+- **Generation pacing (per PRODUCT_PLAN case-by-case decision):** no
+  batch pre-generation. Cards generate on demand in the studio flow;
+  at most ONE next-card draft may be prefetched for snappiness, and a
+  prefetched draft is discarded unseen when settings change. Sign-off
+  is a recorded state transition (timestamp) on the message, and the
+  order pipeline hard-gates on it: nothing renders to print without a
+  signed-off message.
 - **Vendor abstraction:** no fulfillment vendor types outside the adapter.
   Adding pen-written tier later = new adapter + tier metadata, no product
   rewrite.
