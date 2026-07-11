@@ -20,12 +20,35 @@ Everything hangs off an **Event** ("Sarah & Tom's Wedding", "Baby shower
 for Emma"). The user's journey:
 
 ```
-Landing → Sign up → Create event → Add recipients → Add gifts/notes
-→ Set tone & handwriting → Generate → Review each card → Design card
-→ Checkout → Track orders
+Landing → Sign up → Create event → Add recipients (1 or 80, her call)
+→ Card studio (per-card: context → generate → shape → sign off)
+→ Design card → Checkout (address deadline) → Track orders
 ```
 
 She can leave and return at any step; the event remembers where she was.
+
+## FTU principle: first card before first hurdle (decided 2026-07-11)
+
+The first-time user must reach the payoff — a finished card, in her
+handwriting, for a real person — **within minutes**, before any bulk
+work is asked of her. Two design rules make this possible:
+
+1. **A name is enough to start a card.** Recipient entry is decoupled
+   from address entry: the studio needs "Aunt Carol — KitchenAid," not
+   a validated street address. **Addresses are only required at
+   checkout** — that's the address deadline, not the front door.
+2. **Recipient entry is optional-bulk, never forced-bulk.** She can
+   upload the whole CSV up front (power move), select existing contacts
+   (returning user — trivial), or add exactly one person and go straight
+   to the studio. The event's recipient list is alive: add, import, or
+   remove people at any time, and the studio queue grows to match.
+
+The FTU golden path: create event → type one name + gift → studio →
+signed-off card in her handwriting ≈ 5 minutes. THEN "add everyone
+else" (CSV or manual) lands as a natural next step with the payoff
+already proven — not as a wall in front of it.
+
+North-star FTU metric: **time to first signed-off card.**
 
 ---
 
@@ -54,14 +77,22 @@ mode through the first generation = stronger hook) — or gate everything.
 - **PM question:** anything else worth capturing once per event? (Venue?
   "we/I" voice? Couple's names for weddings?)
 
-### S4. Recipients
-**Job:** get the list in with minimum typing.
-- V1 sources: **manual entry** + **CSV/spreadsheet upload** with smart
-  column mapping (LLM maps "Auntie's addr" → address fields)
-- Address validation on entry; per-recipient status chip
-  (✓ valid / ⚠ check this / ✗ undeliverable)
+### S4. Recipients (revised 2026-07-11 — non-blocking)
+**Job:** get people in with minimum typing, never as a wall. Per the
+FTU principle: a name is enough; addresses are due at checkout.
+- Entry modes, all optional, all repeatable mid-event:
+  - **Quick add:** name (+ gift, optionally) — enough to start a card
+  - **CSV/spreadsheet upload** with smart column mapping (LLM maps
+    "Auntie's addr" → fields); addresses come along when present
+  - **Select from address book** — returning users pick from existing
+    contacts in seconds (the baby shower reuses the wedding list)
+- Per-recipient completeness chip: ✍️ ready to write / 📮 needs address /
+  ✓ address valid / ⚠ check this. Address gaps surface passively here
+  and hard-gate only at checkout.
+- "Fill in addresses" is its own focused pass she can do in one sitting
+  (or fix one-offs at checkout) — deliberately separate from the
+  emotional card-writing work.
 - Recipients belong to her address book; an event *selects* from it
-  (so the baby shower next year reuses the wedding list)
 - **PM questions:** household handling ("Mr. & Mrs. Chen" vs two
   people)? Kids' parties where the thank-you goes to the parent but
   names the kid? Required now or V1.1?
@@ -150,9 +181,11 @@ Per-card flow:
 **Job:** clear price, no surprises, confidence everything is correct.
 - **Only signed-off cards can enter an order** — hard gate, no
   exceptions. Un-signed cards are listed as "still in the studio."
+- **Checkout is the address deadline:** any card whose recipient still
+  needs an address (📮) or has a ⚠ validation flag gets fixed here —
+  inline, one at a time, or "mail these 60 now, finish the rest later"
 - Order summary: N cards × tier price, volume discount applied and
   *shown* ("You saved $12"), any upsells later
-- Final address confirmation pass (anything still ⚠ gets fixed here)
 - Print-at-home path forks here: free, generates the PDF, done
 - Stripe checkout; Apple Pay / Google Pay enabled (mobile-first!)
 - **PM question:** partial sends allowed (mail the 60 approved now, 20

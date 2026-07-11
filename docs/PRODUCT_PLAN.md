@@ -109,6 +109,13 @@ stroke-font onboarding with a pen vendor.
 ## Features
 
 ### Recipients & addresses
+
+**FTU decision (2026-07-11): recipient entry never blocks the payoff.**
+A name is enough to start writing a card; addresses are decoupled and
+only required at checkout (the "address deadline"). Bulk import is
+offered, never forced — she can add one person, sign off her first card
+in ~5 minutes, and import the other 79 afterward with the payoff already
+proven. FTU north-star metric: **time to first signed-off card.**
 - **Wedding platform imports first:** Zola, The Knot, Joy export guest
   lists with collected addresses (CSV at minimum; APIs where available).
 - **Spreadsheet upload** (CSV / Excel / Google Sheets) with smart column
