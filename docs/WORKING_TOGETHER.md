@@ -61,6 +61,10 @@ spec is ambiguous, expensive, or has a cheaper alternative, before building.
 ## Done means
 - [ ] <observable behavior>
 
+## Data touched (required — see docs/DATA_PROTECTION.md)
+- <new data collected, its sensitivity class, why, retention, which
+  vendors see it — or "none">
+
 ## Out of scope
 - <explicitly not now>
 

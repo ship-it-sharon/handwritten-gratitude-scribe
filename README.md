@@ -16,6 +16,7 @@ eventually the gift — for you.
 ## Docs
 
 - [Product plan](docs/PRODUCT_PLAN.md) — vision, north star, decisions, features, tiers, phases
+- [Data protection](docs/DATA_PROTECTION.md) — **binding** privacy non-negotiables; wins over any conflicting decision
 - [V1 flows](docs/specs/V1_FLOWS.md) — screen-by-screen sketch + build milestones (PM markup wanted)
 - [Architecture](docs/ARCHITECTURE.md) — planned system shape (pre-code)
 - [Fulfillment research](docs/FULFILLMENT_RESEARCH.md) — print vs. real-pen vendors, font flexibility, envelope requirement

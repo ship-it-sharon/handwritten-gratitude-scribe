@@ -140,6 +140,12 @@ handwriting style as the note interior.
      QR placement control? photo-front + photo-insert support? postage
      type (stamp vs indicia)? envelope return-address control? white-
      label packaging? consumer-volume pricing tiers?
+   - **Data-protection gate (per DATA_PROTECTION.md, disqualifying):**
+     DPA available? What happens to recipient addresses after mailing —
+     retention period, deletion on request (API or process)? Any use of
+     our recipient data for their marketing/analytics? SOC 2 / ISO 27001
+     or equivalent? Breach-notification terms? We send order data at
+     placement time only — no address-book syncing.
    - Ask Handwrytten + Simply Noted + IgnitePost: can you onboard N of
      our licensed fonts as custom styles? Per-style cost, timeline,
      exclusivity, API addressing? (Feeds the pen tier AND pressure-tests

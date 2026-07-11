@@ -90,9 +90,15 @@ backend/
 
 ## Cross-cutting concerns
 
-- **PII:** addresses, voice recordings, photos of homes/gifts. Row-level
-  security everywhere; encryption at rest via platform; strict retention
-  policy for audio and samples; delete-account really deletes.
+- **PII / data protection:** governed by `docs/DATA_PROTECTION.md`
+  (binding). Architectural consequences: RLS on every table from the
+  first migration with no bypass paths; signed short-lived URLs for all
+  stored media; PII banned from logs/analytics/URLs; data-diet on AI
+  calls (no street addresses to the LLM); vendors receive data only at
+  the moment of action (no address-book pre-syncing to fulfillment);
+  audit logging of admin/service access from V1; retention/expiry
+  fields on media from the first schema; delete-account really deletes,
+  including vendor-side purge calls.
 - **Rendering correctness:** the PDF is the product. Golden-file tests on
   renderer output; vendor spec conformance (bleed, safe area, DPI) tested
   per adapter.

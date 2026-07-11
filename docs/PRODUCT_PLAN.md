@@ -14,6 +14,13 @@ mailed in minutes instead of evenings.
 it herself? The product sells relief from a social obligation *without the
 guilt of a shortcut*.
 
+**The second bar, equal and non-negotiable (adopted 2026-07-11):** Posy
+holds the addresses, dates, and private sentiments of people who never
+signed up for anything. Protecting that data with high integrity is part
+of the product's ethos and binds every technical and vendor decision.
+The binding rules live in `docs/DATA_PROTECTION.md` — when a feature or
+vendor conflicts with them, the feature changes, not the rules.
+
 ## North star (decided 2026-07-11): Posy is a relationship-tending app
 
 Thank-you notes are the wedge, not the destination. The natural extension:
