@@ -11,7 +11,10 @@ is short.
 ## Docs
 
 - [Product plan](docs/PRODUCT_PLAN.md) — vision, decisions, features, tiers, phases
+- [V1 flows](docs/specs/V1_FLOWS.md) — screen-by-screen sketch + build milestones (PM markup wanted)
 - [Architecture](docs/ARCHITECTURE.md) — planned system shape (pre-code)
-- [Fulfillment research](docs/FULFILLMENT_RESEARCH.md) — print vs. real-pen vendors, font flexibility findings
+- [Fulfillment research](docs/FULFILLMENT_RESEARCH.md) — print vs. real-pen vendors, font flexibility, envelope requirement
+- [Working together](docs/WORKING_TOGETHER.md) — PM ↔ Claude Code workflow
+- [Infrastructure](docs/INFRASTRUCTURE.md) — hosting/domain/services shopping list, costs, setup order
 
 No code yet — planning first, on purpose.
