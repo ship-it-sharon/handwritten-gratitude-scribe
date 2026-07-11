@@ -1,6 +1,22 @@
-# Architecture — Handwritten Gratitude Scribe
+# Architecture — Posy
 
-_Last updated: 2026-07-10. Status: planned, pre-code._
+_Last updated: 2026-07-11. Status: planned, pre-code._
+
+## North-star constraints (from PRODUCT_PLAN "Posy" section)
+
+V1 builds thank-you notes only, but the data model is shaped so the
+occasion-reminder/gifting future is additive, not a migration:
+
+- **Contacts are the durable center**, not events. Everything sent to a
+  person links back to them; contacts carry important dates.
+- **Events are occasion instances** ("Our Wedding", "Christmas 2027",
+  "Jane's Birthday") — some past/reactive, some future/recurring. V1
+  only creates past-style events; the shape allows future-dated ones.
+- **Received vs sent gifts are different entities** — named as such from
+  day one.
+- **Proactive entry points will exist later** (reminders). V1 builds
+  nothing proactive, but transactional email (order updates) establishes
+  the outbound channel plumbing.
 
 ## Shape of the system
 
@@ -38,17 +54,33 @@ backend/
 | QR voice | Audio upload → storage → unlisted short URL + playback page → QR embedded by renderer. |
 | Payments | Stripe. Pay-per-card checkout, volume discount tiers, upsell line items (photos, QR). |
 
-## Data model (first cut)
+## Data model (first cut, Posy-shaped)
 
 - `users`
-- `contacts` — name, address (validated + raw), source (csv | manual |
-  contacts | parsed-text | ocr | request-link), relationship
-- `events` — occasion (wedding | shower | birthday | …), date
-- `gifts` — event, giver(contact), description, photo(s), capture source
-- `notes` — gift/contact, generated text, edit history, status
-  (draft | approved), tone settings
-- `cards` — note + design + font + extras (photo ids, audio id), rendered
-  artifact ref
+- `contacts` — name, household grouping, relationship; **the durable
+  relationship graph**. V1 populates from imports/manual entry; later
+  features hang off this table rather than off events.
+- `contact_addresses` — validated + raw address, source (csv | manual |
+  contacts | parsed-text | ocr | request-link), current flag. Separate
+  table: addresses change over time and Posy's long game spans years.
+- `contact_dates` — birthday, anniversary, custom dates per contact.
+  Empty in V1 (CSV import may populate it opportunistically); powers
+  future reminders. Costs one table now, saves a migration later.
+- `events` — occasion type (wedding | shower | birthday | holiday | …),
+  event date, **temporal mode (past-reactive in V1; schema permits
+  future-dated)**, optional recurrence hint (null in V1)
+- `gifts_received` — event, giver(contact), description, photo(s),
+  capture source. Named for direction; `gifts_sent` arrives with the
+  gifting flows, as a sibling not a retrofit.
+- `messages` — per contact+event: generated text, edit history, status
+  (draft | approved), tone settings. (Named `messages`, not `notes` —
+  thank-you notes now, holiday/birthday messages later.)
+- `cards` — message + design + font + extras (photo ids, audio id),
+  rendered artifact ref
+- `send_history` — denormalized per-contact record of everything ever
+  sent (card, date, occasion, message text ref). Powers "what did I say
+  last year" in generation and the contact timeline later. Written from
+  day one, cheap.
 - `orders` / `order_items` — fulfillment vendor refs, status timeline,
   pricing snapshot
 - `fonts` — library metadata, feature vector (for matching), license info,
@@ -77,3 +109,12 @@ backend/
 - Own plotter fleet for the pen tier.
 - Registry/wedding-platform API integrations (V1 uses their CSV exports).
 - Subscriptions (model is pay-per-card at launch).
+- **Reminder/notification engine** (scheduled jobs + push/email) — the
+  Posy proactive layer. V1's only outbound sends are transactional order
+  emails, which establish the email plumbing the reminder engine will
+  reuse.
+- **Social-app context ingestion** for message generation — opt-in,
+  privacy-heavy, post-north-star-validation. Generation inputs stay
+  pluggable (a context object, not hardcoded fields) so this slots in.
+- **Gift recommendation/procurement** (gift cards, experiences) — new
+  vertical; `gifts_sent` + a `GiftProvider` abstraction when it comes.

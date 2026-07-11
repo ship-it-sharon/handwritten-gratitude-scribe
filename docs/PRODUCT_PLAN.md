@@ -1,6 +1,7 @@
-# Product Plan — Handwritten Gratitude Scribe
+# Product Plan — Posy
 
-_Last updated: 2026-07-10. Status: pre-code planning._
+_Last updated: 2026-07-11. Status: pre-code planning._
+_(Working name was "Handwritten Gratitude Scribe"; the product is **Posy**.)_
 
 ## Vision
 
@@ -12,6 +13,37 @@ mailed in minutes instead of evenings.
 **The bar every feature must clear:** would the recipient believe she wrote
 it herself? The product sells relief from a social obligation *without the
 guilt of a shortcut*.
+
+## North star (decided 2026-07-11): Posy is a relationship-tending app
+
+Thank-you notes are the wedge, not the destination. The natural extension:
+
+- **Occasions, ongoing:** holidays, birthdays, anniversaries — Posy
+  *reminds* the user when they're coming and makes acting effortless.
+- **Context-aware messages:** generated from direct user input and,
+  eventually, context pulled from social apps (opt-in).
+- **Gifting:** recommend and procure digital gifts — gift cards and
+  experiences — alongside (or instead of) the card.
+
+V1 scope is unchanged (thank-you notes, reactive). But the north star
+shifts several architectural centers of gravity NOW, cheaply, to avoid
+expensive rework later:
+
+1. **Contacts are the durable heart of the product** — a private
+   relationship graph with important dates and a history of everything
+   sent, not a one-wedding import target.
+2. **Events generalize:** "Christmas 2027" and "Jane's Birthday" are
+   events just like "Our Wedding" — some recur, some are future-dated
+   and reminder-driven rather than past and reactive.
+3. **The model must distinguish gifts *received* (thank-you context)
+   from gifts *sent* (future gifting flows).**
+4. **Proactive surfaces (reminders/notifications) will exist** — not
+   built in V1, but nothing in V1 may assume the app is only ever
+   entered by the user's own initiative.
+
+Business-model note: the north star strengthens the eventual subscription
+case (an always-on occasion concierge is subscription-shaped), while
+launch remains pay-per-card.
 
 ## Audience
 
@@ -137,7 +169,9 @@ stroke-font onboarding with a pen vendor.
 - **Free tier:** print-at-home PDF (watermark-free; the funnel is the
   product experience, not a crippled demo).
 - No subscription at launch; revisit once repeat-occasion behavior is
-  observed (holiday cards are the obvious subscription wedge later).
+  observed. The Posy north star (occasion reminders + gifting concierge)
+  is the eventual subscription product; pay-per-card is how we earn the
+  right to it.
 
 ## Go-to-market notes
 
