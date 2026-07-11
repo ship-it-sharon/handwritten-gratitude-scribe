@@ -41,9 +41,14 @@ expensive rework later:
    built in V1, but nothing in V1 may assume the app is only ever
    entered by the user's own initiative.
 
-Business-model note: the north star strengthens the eventual subscription
-case (an always-on occasion concierge is subscription-shaped), while
-launch remains pay-per-card.
+Business-model note (clarified 2026-07-11): **monetization stays
+pay-per-card, permanently** — no subscription. The north star's value to
+the business is *recurrence of reason*: reminders and upcoming occasions
+give Posy a legitimate cause to re-engage the user again and again, each
+touch converting to per-card (and later per-gift) transactions. Recurring
+revenue, but periodic — pulsed by the user's real calendar — not a
+regular fee. Retention is measured in occasions acted on per user per
+year, not in subscription renewals.
 
 ## Audience
 
@@ -168,10 +173,11 @@ stroke-font onboarding with a pen vendor.
 - **Upsells per card:** photo print(s), QR voice message.
 - **Free tier:** print-at-home PDF (watermark-free; the funnel is the
   product experience, not a crippled demo).
-- No subscription at launch; revisit once repeat-occasion behavior is
-  observed. The Posy north star (occasion reminders + gifting concierge)
-  is the eventual subscription product; pay-per-card is how we earn the
-  right to it.
+- **No subscription — ever, per current thinking.** Pay-per-card is the
+  permanent model; the north star's reminders create periodic recurring
+  revenue by giving Posy repeated, legitimate reasons to bring the user
+  back to a transaction. Gifting later adds per-gift revenue on the same
+  pulse.
 
 ## Go-to-market notes
 
