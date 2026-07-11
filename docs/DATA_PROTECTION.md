@@ -113,5 +113,7 @@ she was trying to honor. So the bar is set accordingly.
   another's suggestions.
 - Building shadow profiles of recipients from external sources.
 - "Anonymized" contact-graph analytics sold or shared externally.
-- Any social-app context ingestion without explicit, revocable, per-source
-  opt-in — and none before the feature exists officially.
+- Ambient social-app ingestion of any kind (decided 2026-07-11): Posy
+  never watches feeds or monitors recipients. Social context enters only
+  as individual posts/screenshots the user explicitly shares into Posy,
+  processed for that one message and nothing else.

@@ -28,7 +28,12 @@ Thank-you notes are the wedge, not the destination. The natural extension:
 - **Occasions, ongoing:** holidays, birthdays, anniversaries — Posy
   *reminds* the user when they're coming and makes acting effortless.
 - **Context-aware messages:** generated from direct user input and,
-  eventually, context pulled from social apps (opt-in).
+  eventually, social posts the user shares into Posy (share-sheet or
+  screenshot, per-item). **User-curated, never ambient** (decided
+  2026-07-11): Posy never watches feeds or gathers information about
+  recipients from external sources — it accepts what the user hands it.
+  See DATA_PROTECTION.md; this is also the only version platform APIs
+  permit.
 - **Gifting:** recommend and procure digital gifts — gift cards and
   experiences — alongside (or instead of) the card.
 
