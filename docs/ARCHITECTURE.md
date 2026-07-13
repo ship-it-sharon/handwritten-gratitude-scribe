@@ -30,7 +30,9 @@ Monorepo, TypeScript throughout:
 
 ```
 apps/
-  web/        React (Vite) — primary product surface, batch flows
+  web/        Next.js (React) — primary product surface, batch flows
+              (decided 2026-07-13: Next.js over Vite — Vercel-native,
+              server routes for Stripe/fulfillment webhooks, SSR landing)
   mobile/     React Native + Expo — camera, contacts, voice, share-sheet
 packages/
   shared/     Domain types, API client, validation, note/card models
