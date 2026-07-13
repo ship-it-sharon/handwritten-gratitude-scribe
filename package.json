@@ -1,0 +1,8 @@
+{
+  "name": "posy",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

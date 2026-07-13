@@ -1,0 +1,106 @@
+:root {
+  --posy-ink: #2d2a26;
+  --posy-paper: #faf7f2;
+  --posy-accent: #b0526b;
+  --posy-accent-soft: #f3e2e7;
+  --posy-muted: #8a8378;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: var(--posy-paper);
+  color: var(--posy-ink);
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--posy-accent);
+}
+
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 4rem 1.5rem;
+}
+
+.wordmark {
+  font-size: 2.5rem;
+  letter-spacing: 0.02em;
+}
+
+.tagline {
+  color: var(--posy-muted);
+  font-size: 1.15rem;
+  margin-top: 0.5rem;
+}
+
+.card {
+  background: white;
+  border: 1px solid #eee6da;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(45, 42, 38, 0.06);
+  margin-top: 2.5rem;
+  padding: 2rem;
+}
+
+.button {
+  background: var(--posy-accent);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  display: inline-block;
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 0.65rem 1.4rem;
+  text-decoration: none;
+}
+
+.button:disabled {
+  background: var(--posy-muted);
+  cursor: not-allowed;
+}
+
+.button.secondary {
+  background: var(--posy-accent-soft);
+  color: var(--posy-ink);
+}
+
+.input {
+  border: 1px solid #d9d0c3;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 0.65rem 0.9rem;
+  width: 100%;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.notice {
+  background: var(--posy-accent-soft);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  padding: 0.9rem 1.1rem;
+}
+
+.muted {
+  color: var(--posy-muted);
+  font-size: 0.95rem;
+}
