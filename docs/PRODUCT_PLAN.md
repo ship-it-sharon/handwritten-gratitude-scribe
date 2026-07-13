@@ -169,6 +169,37 @@ proven. FTU north-star metric: **time to first signed-off card.**
 - **R&D track:** ML handwriting synthesis (One-DM / HiGAN+ class models)
   — high wow, high productionization risk. Never on the critical path.
 
+### Accessibility & tactile formats (future scope, decided 2026-07-13)
+
+Not MVP, but architected for from day one. Two threads:
+
+- **Tactile card designs:** raised/textured designs positioned as
+  *premium* — beautiful in their own right, and additionally
+  recommended when the recipient is visually impaired. Deliberately not
+  a segregated "accessibility section": these are nice cards first.
+- **Content formats**, shipped as separate sequential releases:
+  1. **Enlarged print** — cuts the note's character budget sharply (or
+     moves the note to an insert); generation length limits must be
+     driven by the card's format, not a global constant.
+  2. **Raised print** (thermography/embossing-class processes).
+  3. **Braille** — UEB transcription (braille expands ~2.5x over print,
+     so almost certainly insert-based), specialty embosser fulfillment,
+     ideally certified transcription QA.
+
+Product mechanics this implies, recorded now:
+- **The need belongs to the recipient, not the event.** Aunt Carol's
+  large-print preference is remembered on her contact — set once,
+  honored at every future occasion automatically. (Very Posy.)
+- **Per-card format variation within one event** — 79 standard cards
+  and one braille card in the same order must be normal, not an edge
+  case.
+- Formats and tactile designs price as per-card upsells — consistent
+  with the pay-per-card model.
+- Synergy: the QR voice message is already our most accessible feature
+  (audio!). Future consideration: a tactile locator for the QR code and
+  accessible-QR standards (e.g. NaviLens-class) so it's findable by
+  touch.
+
 ### Card design & extras
 - Curated card style families (cover art, layouts); occasion-appropriate.
 - **Photo upsell:** photo-front cards and/or printed photo inserts from

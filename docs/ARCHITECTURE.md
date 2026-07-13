@@ -17,6 +17,12 @@ occasion-reminder/gifting future is additive, not a migration:
 - **Proactive entry points will exist later** (reminders). V1 builds
   nothing proactive, but transactional email (order updates) establishes
   the outbound channel plumbing.
+- **Accessible/tactile formats will exist later** (enlarged print →
+  raised print → braille; textured premium designs). Three shapes
+  follow now: format is a **per-card** property (never per-event), a
+  card's text-length budget derives from its format spec, and
+  fulfillment routing is capability-based because one order may split
+  across vendors (79 standard cards + 1 braille card).
 
 ## Shape of the system
 
@@ -50,7 +56,7 @@ backend/
 | Address validation | USPS/SmartyStreets-class verifier; hard gate before order acceptance. |
 | Handwriting match | Vision analysis of a sample photo (slant, cursive-ness, letterforms, spacing) → ranked matches against the font library's feature index. |
 | Rendering | Own PDF renderer (`packages/renderer`). Fonts + realism layer (contextual alternates, jitter). One renderer feeds print-at-home, print vendor, and previews. |
-| Fulfillment | `FulfillmentProvider` interface; first adapter = digital print-and-mail vendor (Lob-class). Webhooks → order status timeline. |
+| Fulfillment | `FulfillmentProvider` interface with **capability flags** (folded card, photo front, inserts, QR, envelope-in-font, raised print, braille, pen-written). Cards route to a vendor by required capabilities, so one order can split across vendors. First adapter = handwriting-specialist digital printer. Webhooks → order status timeline. |
 | QR voice | Audio upload → storage → unlisted short URL + playback page → QR embedded by renderer. |
 | Payments | Stripe. Pay-per-card checkout, volume discount tiers, upsell line items (photos, QR). |
 
@@ -59,7 +65,9 @@ backend/
 - `users`
 - `contacts` — name, household grouping, relationship; **the durable
   relationship graph**. V1 populates from imports/manual entry; later
-  features hang off this table rather than off events.
+  features hang off this table rather than off events. Includes a
+  nullable `format_preferences` field (e.g. large-print, braille) —
+  empty in V1; set once, honored at every future occasion.
 - `contact_addresses` — validated + raw address, source (csv | manual |
   contacts | parsed-text | ocr | request-link), current flag. Separate
   table: addresses change over time and Posy's long game spans years.
@@ -75,8 +83,16 @@ backend/
 - `messages` — per contact+event: generated text, edit history, status
   (draft | approved), tone settings. (Named `messages`, not `notes` —
   thank-you notes now, holiday/birthday messages later.)
-- `cards` — message + design + font + extras (photo ids, audio id),
-  rendered artifact ref
+- `cards` — message + design + font + extras (photo ids, audio id) +
+  **format spec** (size, print mode: standard | large-print | raised |
+  braille; standard-only in V1) + component list (front / interior /
+  inserts), rendered artifact ref. Format lives per-card so one event
+  can mix formats; the message's character budget is a function of
+  the format spec, enforced back in the studio at edit time.
+- `designs` — card design catalog with attribute tags (occasion,
+  style family, premium, textured/raised, high-contrast,
+  large-print-friendly) so recommendation is tag-driven, not a
+  segregated accessibility catalog.
 - `send_history` — denormalized per-contact record of everything ever
   sent (card, date, occasion, message text ref). Powers "what did I say
   last year" in generation and the contact timeline later. Written from
@@ -129,3 +145,8 @@ backend/
   pluggable (a context object, not hardcoded fields) so this slots in.
 - **Gift recommendation/procurement** (gift cards, experiences) — new
   vertical; `gifts_sent` + a `GiftProvider` abstraction when it comes.
+- **Accessible formats** (enlarged print → raised print → braille) and
+  tactile premium designs — the schema hooks above (per-card format
+  spec, contact format preferences, design tags, capability routing)
+  exist from V1; the renderers, transcription (UEB), and specialty
+  vendors arrive with each release.
