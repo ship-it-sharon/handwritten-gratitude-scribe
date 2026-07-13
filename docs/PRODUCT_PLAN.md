@@ -86,6 +86,12 @@ and lives on her phone.
 | 2 | Platform order | **Web first**, but the mobile app is required for GTM — social-platform advertising leans mobile. |
 | 3 | Handwriting at launch | **Robust font library + "best match"** from a photographed handwriting sample. Custom font-from-sample and ML synthesis come later. |
 | 4 | Business model | **Pay-per-card** with volume discounts. Upsells: included photo prints, QR voice messages. |
+| 5 | Auth (2026-07-13) | Account-first; Google OAuth in MVP + magic link. More OAuth providers later (login only — social APIs expose no contacts). |
+| 6 | Households (2026-07-13) | V1: named Household of N member contacts; send history honored at both household and individual level, membership tracked over time. |
+| 7 | Handwriting step placement (2026-07-13) | Before the studio (first draft renders in "her" handwriting); flow-order experiments later. |
+| 8 | Tone model (2026-07-13) | Per-event default + per-contact overrides; override propagates to the contact's household, always visible, one-tap revert. |
+| 9 | Studio behavior (2026-07-13) | Edits teach the generator mid-batch; ~45–90s per card pace target. |
+| 10 | Experimentation stack (2026-07-13) | Proper analytics/flags/experiments from M0 — PostHog proposed (single vendor) over Amplitude + LaunchDarkly; Sharon open to it. |
 
 ## Output tiers (target state, post-MVP)
 

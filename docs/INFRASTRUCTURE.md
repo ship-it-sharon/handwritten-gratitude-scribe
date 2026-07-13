@@ -23,6 +23,8 @@ list and the order to buy it in._
 | AI (note generation, matching, parsing) | **Anthropic API** | Claude for generation/vision/extraction | Pay-per-use; pennies per note batch while testing |
 | Print fulfillment | **Thanks.io** | Per FULFILLMENT_RESEARCH.md | Pay-per-card (~$1.79+ per mailed notecard) |
 | Transactional email | **Resend** (later) | Receipts, order updates | $0 → ~$20/mo |
+| Analytics + flags + experiments | **PostHog** (proposed over Amplitude + LaunchDarkly) | One vendor covering product analytics, feature flags, and A/B tests; generous free tier; one fewer PII processor | $0 → usage-based |
+| Company email / identity | **Google Workspace** on the Posy domain | All vendor accounts created under @posy identity; professional footing for BD | ~$7/mo (1 seat) |
 | Address validation | Via fulfillment vendor or **Smarty** free tier (later) | Hard gate before orders | $0 early |
 
 Realistic total: **≈ $1–2/mo while building** (domain amortized), rising
@@ -30,16 +32,24 @@ toward **~$70/mo + per-card costs** only when there are real users.
 
 ## Account setup order (each ~10 minutes, Claude walks through each live)
 
-1. **Domain name** — blocked on branding: the product needs a name before
-   buying a domain. (Decide name → check availability → buy.)
-2. **Vercel** — sign up with GitHub; connect this repo; previews start
-   working immediately. Needed at milestone M0.
-3. **Supabase** — create org + project; grab API keys. Needed at M0.
-4. **Anthropic API** — create key, set a monthly spend cap. Needed when
+_Sequence decided 2026-07-13: domain → Google Workspace → everything
+else under the @posy identity._
+
+1. **Domain** — name is Posy; check availability (posy.app,
+   getposy.com, sendposy.com, …) → buy at Cloudflare Registrar.
+2. **Google Workspace** (1 seat, ~$7/mo) on that domain →
+   sharon@posy.___ becomes the identity every other account is created
+   with. Cloudflare DNS hosts the MX records (guided setup).
+3. **Vercel** — sign up with the Workspace Google account; connect this
+   repo; previews start working immediately. Needed at milestone M0.
+4. **Supabase** — create org + project; grab API keys. Needed at M0.
+5. **PostHog** — analytics/flags/experiments; wire in during M0 so
+   funnel data exists from the first preview.
+6. **Anthropic API** — create key, set a monthly spend cap. Needed when
    note generation is built (M2).
-5. **Stripe** — business details required (can start in test mode with
+7. **Stripe** — business details required (can start in test mode with
    nothing real). Needed at checkout milestone (M5); test mode from day 1.
-6. **Thanks.io** — account + API key; also the account through which we
+8. **Thanks.io** — account + API key; also the account through which we
    evaluate card stock samples. Needed at fulfillment milestone (M6);
    order physical samples EARLY (week 1–2) since stock quality could
    change the vendor decision.

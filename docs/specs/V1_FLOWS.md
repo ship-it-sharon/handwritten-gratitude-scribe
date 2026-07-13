@@ -61,13 +61,17 @@ a tacky shortcut. Show a real-looking card immediately.
 - **PM questions:** brand voice? Does pricing show on landing or after
   value demo? Social proof strategy at launch (no users yet)?
 
-### S2. Sign up / sign in
-**Job:** zero-friction entry. Email magic link + "Continue with Google".
-No passwords. Sign-up can wait until she tries to *save* work (guest
-mode through the first generation = stronger hook) — or gate everything.
-- **PM question:** guest-first or account-first? (Guest-first converts
-  better but complicates "come back later"; my lean is account-first for
-  V1 simplicity, guest-first as a post-launch experiment.)
+### S2. Sign up / sign in (decided 2026-07-13)
+**Job:** zero-friction entry. **Account-first.** No passwords.
+- MVP: **"Continue with Google"** (required) + email magic link
+- Later: additional popular OAuth providers (Apple will be required by
+  App Store rules when the V2 iOS app ships and Google login is
+  offered; Facebook/Instagram possible as *sign-in convenience*)
+- Reality check, recorded: **Facebook/Instagram APIs do not expose
+  friend lists or contact details** (locked down post-2018) — social
+  OAuth is a login method, not a contacts source. Contact import stays:
+  CSV, phone contacts (V2 app), Google Contacts, share/paste parsing.
+- Guest mode: post-launch conversion experiment, not V1.
 
 ### S3. Create event
 **Job:** name the occasion, set the context the generator will use.
@@ -93,9 +97,15 @@ FTU principle: a name is enough; addresses are due at checkout.
   (or fix one-offs at checkout) — deliberately separate from the
   emotional card-writing work.
 - Recipients belong to her address book; an event *selects* from it
-- **PM questions:** household handling ("Mr. & Mrs. Chen" vs two
-  people)? Kids' parties where the thank-you goes to the parent but
-  names the kid? Required now or V1.1?
+- **Households (decided 2026-07-13 — V1):** a Household is a named
+  entity ("The Chens") composed of N individual contacts who also exist
+  in their own right. A card addresses the household; history is
+  honored at BOTH levels — the household's timeline shows what it
+  received, and each member's timeline includes it too, so "what have
+  I ever sent Emily" is complete even as Emily moves between households
+  over the years (marriage, divorce, kids growing up).
+- **PM question (remaining):** kids' parties where the thank-you goes
+  to the parent but names the kid — V1 or V1.1?
 
 ### S5. Gifts & notes-to-self
 **Job:** capture what each person gave + anything personal, fast.
@@ -108,14 +118,20 @@ FTU principle: a name is enough; addresses are due at checkout.
 - **PM question:** is "no gift, just showed up / helped" a first-class
   case? (I think yes — "thank you for celebrating with us" notes.)
 
-### S6. Tone & voice
+### S6. Tone & voice (decided 2026-07-13)
 **Job:** make the notes sound like her.
 - Tone dial: warm / playful / formal (+ brief preview of each in situ)
+- **Tone model: per-event default + per-contact overrides.** If an
+  overridden contact belongs to a household, the override applies to
+  the household's card. Wherever an override is in effect, the studio
+  shows it explicitly ("Formal — override for Grandma Ruth") with a
+  one-tap revert to the event tone.
+  - Edge to design later: two members of one household with conflicting
+    overrides → surface the conflict, ask her to pick (never silently
+    choose).
 - Optional: paste 2–3 past notes or texts she's written → generator
   mimics her phrasing
 - Sign-off setting ("Love,", "xo", "With gratitude,") + name(s)
-- **PM question:** per-event or per-recipient-group tone? (Grandma gets
-  formal, college friends get playful — V1 or V1.1?)
 
 ### S7. The card studio — THE screen (revised 2026-07-11)
 **Job:** one card at a time, with the user present at each card's
@@ -148,9 +164,9 @@ Per-card flow:
   is discarded unseen if she changes tone/settings. The experience is
   one-at-a-time; the prefetch is only there so it's a *snappy*
   one-at-a-time.
-- **PM questions:** should her edits teach the generator mid-batch
-  (card 30 starts sounding more like her card-5 edits)? Target pace:
-  is ~45–90 seconds per card the right feel — present but not slow?
+- **Decided 2026-07-13:** her edits DO teach the generator mid-batch
+  (subtly — accumulated edit patterns feed later cards' style), and
+  ~45–90 seconds per card is the confirmed pace target.
 
 ### S8. Handwriting
 **Job:** "that looks like MY writing" (or at least: unmistakably human).
@@ -162,9 +178,10 @@ Per-card flow:
   fulfillment vendor's style catalog; print-at-home uses our full
   library. UI presents one gallery; mailed-tier availability shown per
   style.
-- **PM question:** where does this step live — before generation (she
-  sees drafts in her handwriting from the first moment, my lean) or
-  after review?
+- **Decided 2026-07-13: this step comes BEFORE the studio** — the very
+  first draft renders in "her" handwriting (that's the FTU wow).
+  Flow-order experiments to follow post-launch via the experimentation
+  stack.
 
 ### S9. Card design
 **Job:** pick the physical card. Curated, not overwhelming.

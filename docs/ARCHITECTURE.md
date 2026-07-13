@@ -59,15 +59,26 @@ backend/
 | Fulfillment | `FulfillmentProvider` interface with **capability flags** (folded card, photo front, inserts, QR, envelope-in-font, raised print, braille, pen-written). Cards route to a vendor by required capabilities, so one order can split across vendors. First adapter = handwriting-specialist digital printer. Webhooks → order status timeline. |
 | QR voice | Audio upload → storage → unlisted short URL + playback page → QR embedded by renderer. |
 | Payments | Stripe. Pay-per-card checkout, volume discount tiers, upsell line items (photos, QR). |
+| Auth | Supabase Auth: Google OAuth (MVP) + email magic link; account-first, no passwords. Apple Sign-In arrives with the V2 iOS app (App Store requirement); Facebook/Instagram OAuth optional later as login only — their APIs expose no contacts. |
+| Analytics, flags & experiments | PostHog (proposed; see INFRASTRUCTURE.md): product analytics + feature flags + A/B experiments in one vendor. Event-shaped data only — PII-free per DATA_PROTECTION.md, autocapture off, self-descriptive event names reviewed in PRs. Flow-order experiments (e.g. handwriting-step placement) run on these flags. |
 
 ## Data model (first cut, Posy-shaped)
 
 - `users`
-- `contacts` — name, household grouping, relationship; **the durable
-  relationship graph**. V1 populates from imports/manual entry; later
-  features hang off this table rather than off events. Includes a
-  nullable `format_preferences` field (e.g. large-print, braille) —
-  empty in V1; set once, honored at every future occasion.
+- `contacts` — name, relationship; **the durable relationship graph**.
+  V1 populates from imports/manual entry; later features hang off this
+  table rather than off events. Includes a nullable
+  `format_preferences` field (e.g. large-print, braille) — empty in
+  V1; set once, honored at every future occasion. Nullable
+  `tone_override` (see tone model in V1_FLOWS S6).
+- `households` — first-class named entity ("The Chens") with N member
+  contacts via `household_members` (membership over time, with
+  from/until dates — Emily may marry out of one household into
+  another, and both histories must stay true). A card addresses a
+  household OR an individual; `send_history` records the household
+  card against the household AND each member at send time, so both
+  "what did the Chens get" and "what has Emily ever received" answer
+  correctly forever.
 - `contact_addresses` — validated + raw address, source (csv | manual |
   contacts | parsed-text | ocr | request-link), current flag. Separate
   table: addresses change over time and Posy's long game spans years.
