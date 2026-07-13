@@ -92,6 +92,7 @@ and lives on her phone.
 | 8 | Tone model (2026-07-13) | Per-event default + per-contact overrides; override propagates to the contact's household, always visible, one-tap revert. |
 | 9 | Studio behavior (2026-07-13) | Edits teach the generator mid-batch; ~45–90s per card pace target. |
 | 10 | Experimentation stack (2026-07-13) | Proper analytics/flags/experiments from M0 — PostHog proposed (single vendor) over Amplitude + LaunchDarkly; Sharon open to it. |
+| 11 | Domain (2026-07-13) | **sendposy.com** is the primary; related domains purchased and will redirect to it. |
 
 ## Output tiers (target state, post-MVP)
 

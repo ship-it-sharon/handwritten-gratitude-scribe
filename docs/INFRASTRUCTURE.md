@@ -35,11 +35,14 @@ toward **~$70/mo + per-card costs** only when there are real users.
 _Sequence decided 2026-07-13: domain → Google Workspace → everything
 else under the @posy identity._
 
-1. **Domain** — name is Posy; check availability (posy.app,
-   getposy.com, sendposy.com, …) → buy at Cloudflare Registrar.
-2. **Google Workspace** (1 seat, ~$7/mo) on that domain →
-   sharon@posy.___ becomes the identity every other account is created
-   with. Cloudflare DNS hosts the MX records (guided setup).
+1. **Domain** — ✅ DONE (2026-07-13): **sendposy.com is the primary**
+   (site serves at both sendposy.com and www.sendposy.com); Sharon also
+   holds related domains, which will 301-redirect to the primary once
+   DNS is set up.
+2. **Google Workspace** (1 seat, ~$7/mo) on sendposy.com →
+   **sharon@sendposy.com** becomes the identity every other account is
+   created with. MX records go into whichever DNS host serves
+   sendposy.com (guided setup during Workspace signup).
 3. **Vercel** — sign up with the Workspace Google account; connect this
    repo; previews start working immediately. Needed at milestone M0.
 4. **Supabase** — create org + project; grab API keys. Needed at M0.
