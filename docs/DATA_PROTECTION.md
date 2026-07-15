@@ -73,6 +73,7 @@ she was trying to honor. So the bar is set accordingly.
   | Vercel | transient request data | serving requests |
   | Anthropic | minimal generation context (above) | at generation |
   | Fulfillment (Thanks.io-class) | recipient name+address+message+artwork | at order placement only — no pre-syncing of address books |
+  | Google Maps Platform | the address text typed into the autocomplete box | while the user types in the address form (no names attached, nothing stored there) |
   | Stripe | payment + billing identity | at checkout |
 - **Vendor gate (before any integration):** DPA available · no training
   on our data · deletion honored (API or process) · SOC 2 / ISO 27001 or

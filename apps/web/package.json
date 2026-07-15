@@ -17,6 +17,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@types/google.maps": "^3.65.2",
     "@types/node": "^22.10.0",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.0.0",

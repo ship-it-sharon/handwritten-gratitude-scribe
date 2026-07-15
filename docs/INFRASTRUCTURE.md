@@ -48,7 +48,17 @@ else under the @posy identity._
 4. **Supabase** — create org + project; grab API keys. Needed at M0.
 5. **PostHog** — analytics/flags/experiments; wire in during M0 so
    funnel data exists from the first preview.
-6. **Anthropic API** — create key, set a monthly spend cap. Needed when
+6. **Google Maps Platform key** (Places autocomplete on address forms) —
+   in the existing Posy Google Cloud project: enable **Places API**,
+   create an **API key** (Credentials → Create credentials → API key),
+   restrict it to the posy websites (Application restrictions →
+   Websites → add `posy-dev.vercel.app`, `*.vercel.app` preview
+   domains, and later `sendposy.com`), and add it to Vercel env vars as
+   `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`. Requires enabling billing on the
+   Google Cloud project; autocomplete usage at our scale sits inside
+   Google's free monthly credit. The address form works without the key
+   (plain fields), so this can be done any time.
+7. **Anthropic API** — create key, set a monthly spend cap. Needed when
    note generation is built (M2).
 7. **Stripe** — business details required (can start in test mode with
    nothing real). Needed at checkout milestone (M5); test mode from day 1.

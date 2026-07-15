@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "../../../../lib/supabase/server";
 import { saveAddress } from "../../events/actions";
 import { SubmitButton } from "../../../components/SubmitButton";
+import { AddressFields } from "./AddressFields";
 
 export default async function AddressPage({
   searchParams,
@@ -71,51 +72,7 @@ export default async function AddressPage({
             <input type="hidden" name="household_id" value={householdId} />
           )}
           {eventId && <input type="hidden" name="event_id" value={eventId} />}
-          <label className="stack">
-            <span>Street address</span>
-            <input
-              className="input"
-              name="line1"
-              required
-              placeholder="123 Oak Street"
-              defaultValue={address?.line1 ?? ""}
-            />
-          </label>
-          <label className="stack">
-            <span>Apt / unit (optional)</span>
-            <input
-              className="input"
-              name="line2"
-              defaultValue={address?.line2 ?? ""}
-            />
-          </label>
-          <label className="stack">
-            <span>City</span>
-            <input
-              className="input"
-              name="city"
-              required
-              defaultValue={address?.city ?? ""}
-            />
-          </label>
-          <div className="stack row-on-wide">
-            <label className="stack" style={{ flex: 1 }}>
-              <span>State</span>
-              <input
-                className="input"
-                name="state"
-                defaultValue={address?.state ?? ""}
-              />
-            </label>
-            <label className="stack" style={{ flex: 1 }}>
-              <span>ZIP</span>
-              <input
-                className="input"
-                name="postal_code"
-                defaultValue={address?.postal_code ?? ""}
-              />
-            </label>
-          </div>
+          <AddressFields defaults={address ?? {}} />
           <div>
             <SubmitButton pendingLabel="Saving…">Save address</SubmitButton>
           </div>

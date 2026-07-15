@@ -36,6 +36,33 @@ export default async function ImportPage({
         </p>
         <ImportCsv eventId={id} />
       </div>
+
+      <div className="card stack">
+        <h2>What the file should look like</h2>
+        <p className="muted">
+          Any CSV works as long as there&rsquo;s a header row and a name
+          column — we&rsquo;ll figure out the rest and let you correct the
+          mapping before anything imports. Columns we understand:
+        </p>
+        <ul className="muted" style={{ paddingLeft: "1.2rem" }}>
+          <li><b>Name</b> — required; one person or family per row</li>
+          <li><b>Street Address</b> and <b>Apt/Unit</b> — optional</li>
+          <li><b>City</b>, <b>State</b>, <b>Zip</b> — optional</li>
+        </ul>
+        <p className="muted">
+          Rows with just a name are fine — addresses can be added any time
+          before mailing. Extra columns are simply skipped.
+        </p>
+        <div>
+          <a className="button secondary" href="/posy-import-template.csv" download>
+            Download a template
+          </a>
+        </div>
+        <p className="muted">
+          Using Google Sheets or Excel? File → Download (or Save As) →
+          CSV.
+        </p>
+      </div>
     </main>
   );
 }
