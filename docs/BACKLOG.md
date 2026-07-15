@@ -13,6 +13,13 @@ defers something._
   mobile ergonomics review.
 - Event create form: date field UX, occasion iconography.
 
+## Engineering debt
+
+- Server-side idempotency for create actions (submission tokens): the
+  pending-disabled buttons stop double-taps, but a retried request
+  (flaky network, browser re-POST) could still duplicate. Worth doing
+  before launch; not urgent while testing. (2026-07-14)
+
 ## Product parking lot
 
 - Kids'-party recipient case (thank-you to the parent, names the kid) —
