@@ -123,6 +123,155 @@ export async function addHouseholdRecipient(formData: FormData) {
   revalidatePath(`/app/events/${eventId}`);
 }
 
+export async function addExistingRecipients(formData: FormData) {
+  const { supabase, user } = await requireUser();
+
+  const eventId = String(formData.get("event_id") ?? "");
+  const contactIds = formData.getAll("contact_ids").map(String).filter(Boolean);
+  const householdIds = formData
+    .getAll("household_ids")
+    .map(String)
+    .filter(Boolean);
+
+  if (!eventId || (contactIds.length === 0 && householdIds.length === 0)) {
+    return;
+  }
+
+  // The unique (event_id, contact_id/household_id) constraints make
+  // re-adding someone a no-op rather than a duplicate; contacts and
+  // households conflict on different targets, hence two upserts.
+  if (contactIds.length > 0) {
+    await supabase.from("event_recipients").upsert(
+      contactIds.map((contact_id) => ({
+        user_id: user.id,
+        event_id: eventId,
+        contact_id,
+      })),
+      { onConflict: "event_id,contact_id", ignoreDuplicates: true },
+    );
+  }
+  if (householdIds.length > 0) {
+    await supabase.from("event_recipients").upsert(
+      householdIds.map((household_id) => ({
+        user_id: user.id,
+        event_id: eventId,
+        household_id,
+      })),
+      { onConflict: "event_id,household_id", ignoreDuplicates: true },
+    );
+  }
+
+  revalidatePath(`/app/events/${eventId}`);
+}
+
+export async function saveAddress(formData: FormData) {
+  const { supabase, user } = await requireUser();
+
+  const contactId = String(formData.get("contact_id") ?? "");
+  const householdId = String(formData.get("household_id") ?? "");
+  const eventId = String(formData.get("event_id") ?? "");
+  const line1 = String(formData.get("line1") ?? "").trim();
+  const line2 = String(formData.get("line2") ?? "").trim();
+  const city = String(formData.get("city") ?? "").trim();
+  const state = String(formData.get("state") ?? "").trim();
+  const postalCode = String(formData.get("postal_code") ?? "").trim();
+
+  if ((!contactId && !householdId) || !line1 || !city) return;
+
+  const owner = contactId
+    ? { contact_id: contactId }
+    : { household_id: householdId };
+
+  const { data: existing } = await supabase
+    .from("addresses")
+    .select("id")
+    .match(owner)
+    .eq("is_current", true)
+    .maybeSingle();
+
+  const fields = {
+    line1,
+    line2: line2 || null,
+    city,
+    state: state || null,
+    postal_code: postalCode || null,
+    validation_status: "unvalidated" as const,
+  };
+
+  if (existing) {
+    await supabase.from("addresses").update(fields).eq("id", existing.id);
+  } else {
+    await supabase
+      .from("addresses")
+      .insert({ user_id: user.id, ...owner, ...fields, source: "manual" });
+  }
+
+  revalidatePath(`/app/events/${eventId}`);
+  redirect(eventId ? `/app/events/${eventId}` : "/app");
+}
+
+type CsvRow = {
+  full_name: string;
+  line1?: string;
+  line2?: string;
+  city?: string;
+  state?: string;
+  postal_code?: string;
+};
+
+export async function importCsvRecipients(
+  eventId: string,
+  rows: CsvRow[],
+): Promise<{ imported: number; skipped: number }> {
+  const { supabase, user } = await requireUser();
+
+  let imported = 0;
+  let skipped = 0;
+
+  for (const row of rows) {
+    const fullName = (row.full_name ?? "").trim();
+    if (!fullName) {
+      skipped++;
+      continue;
+    }
+
+    const { data: contact } = await supabase
+      .from("contacts")
+      .insert({ user_id: user.id, full_name: fullName })
+      .select("id")
+      .single();
+
+    if (!contact) {
+      skipped++;
+      continue;
+    }
+
+    if ((row.line1 ?? "").trim() && (row.city ?? "").trim()) {
+      await supabase.from("addresses").insert({
+        user_id: user.id,
+        contact_id: contact.id,
+        line1: row.line1!.trim(),
+        line2: (row.line2 ?? "").trim() || null,
+        city: row.city!.trim(),
+        state: (row.state ?? "").trim() || null,
+        postal_code: (row.postal_code ?? "").trim() || null,
+        source: "csv",
+      });
+    }
+
+    await supabase.from("event_recipients").insert({
+      user_id: user.id,
+      event_id: eventId,
+      contact_id: contact.id,
+    });
+
+    imported++;
+  }
+
+  revalidatePath(`/app/events/${eventId}`);
+  return { imported, skipped };
+}
+
 export async function removeRecipient(formData: FormData) {
   const { supabase } = await requireUser();
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "../../../../lib/supabase/server";
 import {
+  addExistingRecipients,
   addHouseholdRecipient,
   addIndividualRecipient,
   removeRecipient,
@@ -20,10 +21,13 @@ const OCCASION_LABELS: Record<string, string> = {
 
 export default async function EventPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ imported?: string; skipped?: string }>;
 }) {
   const { id } = await params;
+  const { imported, skipped } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -90,8 +94,52 @@ export default async function EventPage({
           : "Household"
         : null,
       hasAddress,
+      addressHref: household
+        ? `/app/recipients/address?household=${household.id}&event=${event.id}`
+        : contact
+          ? `/app/recipients/address?contact=${contact.id}&event=${event.id}`
+          : null,
     };
   });
+
+  // Address book: everyone from any event who isn't already in this one.
+  const inEventContacts = new Set(
+    (recipients ?? [])
+      .map((r) => {
+        const c = Array.isArray(r.contact) ? r.contact[0] : r.contact;
+        return c?.id;
+      })
+      .filter(Boolean),
+  );
+  const inEventHouseholds = new Set(
+    (recipients ?? [])
+      .map((r) => {
+        const h = Array.isArray(r.household) ? r.household[0] : r.household;
+        return h?.id;
+      })
+      .filter(Boolean),
+  );
+
+  const { data: allContacts } = await supabase
+    .from("contacts")
+    .select("id, full_name, household_members (household_id)")
+    .order("full_name");
+  const { data: allHouseholds } = await supabase
+    .from("households")
+    .select("id, name")
+    .order("name");
+
+  const bookHouseholds = (allHouseholds ?? []).filter(
+    (h) => !inEventHouseholds.has(h.id),
+  );
+  // Contacts who belong to a household are represented by it; individuals
+  // stand alone.
+  const bookContacts = (allContacts ?? []).filter(
+    (c) =>
+      !inEventContacts.has(c.id) &&
+      (c.household_members ?? []).length === 0,
+  );
+  const hasBookCandidates = bookContacts.length + bookHouseholds.length > 0;
 
   return (
     <main className="page">
@@ -103,6 +151,16 @@ export default async function EventPage({
         {OCCASION_LABELS[event.occasion_type] ?? "Occasion"}
         {event.event_date ? ` · ${event.event_date}` : ""}
       </p>
+
+      {imported && (
+        <p className="notice">
+          Imported {imported} {Number(imported) === 1 ? "person" : "people"}
+          {skipped && Number(skipped) > 0
+            ? ` (${skipped} rows skipped — no name found)`
+            : ""}
+          .
+        </p>
+      )}
 
       <div className="card stack">
         <h2>Recipients ({rows.length})</h2>
@@ -122,9 +180,15 @@ export default async function EventPage({
                   {row.detail && <div className="muted">{row.detail}</div>}
                 </div>
                 <div className="recipient-side">
-                  <span className="chip">
-                    {row.hasAddress ? "✓ has address" : "📮 needs address"}
-                  </span>
+                  {row.addressHref ? (
+                    <Link className="chip" href={row.addressHref}>
+                      {row.hasAddress ? "✓ has address" : "📮 needs address"}
+                    </Link>
+                  ) : (
+                    <span className="chip">
+                      {row.hasAddress ? "✓ has address" : "📮 needs address"}
+                    </span>
+                  )}
                   <form action={removeRecipient}>
                     <input type="hidden" name="recipient_id" value={row.id} />
                     <input type="hidden" name="event_id" value={event.id} />
@@ -137,6 +201,63 @@ export default async function EventPage({
             ))}
           </ul>
         )}
+      </div>
+
+      {hasBookCandidates && (
+        <div className="card stack">
+          <h2>Add from your address book</h2>
+          <p className="muted">
+            People and households from your other events.
+          </p>
+          <form className="stack" action={addExistingRecipients}>
+            <input type="hidden" name="event_id" value={event.id} />
+            <ul className="recipient-list">
+              {bookHouseholds.map((h) => (
+                <li key={h.id} className="recipient-row">
+                  <label className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      name="household_ids"
+                      value={h.id}
+                    />
+                    <span>
+                      {h.name} <span className="muted">· household</span>
+                    </span>
+                  </label>
+                </li>
+              ))}
+              {bookContacts.map((c) => (
+                <li key={c.id} className="recipient-row">
+                  <label className="checkbox-row">
+                    <input type="checkbox" name="contact_ids" value={c.id} />
+                    <span>{c.full_name}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+            <div>
+              <SubmitButton
+                className="button secondary"
+                pendingLabel="Adding…"
+              >
+                Add selected
+              </SubmitButton>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="card stack">
+        <h2>Bring in a whole list</h2>
+        <p className="muted">
+          Got a spreadsheet — a guest list, a registry export? Import
+          everyone at once.
+        </p>
+        <div>
+          <Link className="button secondary" href={`/app/events/${event.id}/import`}>
+            Import from CSV
+          </Link>
+        </div>
       </div>
 
       <div className="card stack">

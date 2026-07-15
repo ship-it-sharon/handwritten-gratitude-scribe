@@ -135,6 +135,37 @@ a {
   white-space: nowrap;
 }
 
+a.chip {
+  text-decoration: none;
+  color: inherit;
+}
+
+.checkbox-row {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 0.6rem;
+}
+
+.import-table-wrap {
+  overflow-x: auto;
+}
+
+.import-table {
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  min-width: 100%;
+}
+
+.import-table th,
+.import-table td {
+  border-bottom: 1px solid #f0e9dd;
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
 .link-button {
   background: none;
   border: none;
