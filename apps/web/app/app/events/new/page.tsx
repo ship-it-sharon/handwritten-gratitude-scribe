@@ -14,9 +14,15 @@ const OCCASIONS = [
 export default async function NewEventPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    message?: string;
+    title?: string;
+    occasion_type?: string;
+    event_date?: string;
+  }>;
 }) {
-  const { error } = await searchParams;
+  const params = await searchParams;
 
   return (
     <main className="page">
@@ -25,11 +31,13 @@ export default async function NewEventPage({
       </p>
       <h1 className="wordmark">New event</h1>
       <div className="card stack">
-        {error && (
+        {params.error && (
           <p className="notice">
-            {error === "title"
+            {params.error === "title"
               ? "Give your event a name so you can find it again."
-              : "Something went wrong saving — try again."}
+              : `The save didn't go through${
+                  params.message ? ` — the database said: “${params.message}”` : ""
+                }. Your entries are still filled in below; try again.`}
           </p>
         )}
         <form className="stack" action={createEvent}>
@@ -40,11 +48,16 @@ export default async function NewEventPage({
               name="title"
               required
               placeholder="Sarah &amp; Tom&rsquo;s Wedding"
+              defaultValue={params.title ?? ""}
             />
           </label>
           <label className="stack">
             <span>What kind of occasion?</span>
-            <select className="input" name="occasion_type" defaultValue="wedding">
+            <select
+              className="input"
+              name="occasion_type"
+              defaultValue={params.occasion_type ?? "wedding"}
+            >
               {OCCASIONS.map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
@@ -54,7 +67,12 @@ export default async function NewEventPage({
           </label>
           <label className="stack">
             <span>When was it? (optional)</span>
-            <input className="input" type="date" name="event_date" />
+            <input
+              className="input"
+              type="date"
+              name="event_date"
+              defaultValue={params.event_date ?? ""}
+            />
           </label>
           <div>
             <button className="button" type="submit">

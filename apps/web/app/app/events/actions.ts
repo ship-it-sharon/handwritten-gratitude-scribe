@@ -20,7 +20,15 @@ export async function createEvent(formData: FormData) {
   const occasionType = String(formData.get("occasion_type") ?? "other");
   const eventDate = String(formData.get("event_date") ?? "").trim();
 
-  if (!title) redirect("/app/events/new?error=title");
+  // On any failure, send the typed values back so the form re-fills
+  // instead of wiping her input.
+  const keepInput = new URLSearchParams({
+    title,
+    occasion_type: occasionType,
+    event_date: eventDate,
+  });
+
+  if (!title) redirect(`/app/events/new?error=title&${keepInput}`);
 
   const { data, error } = await supabase
     .from("events")
@@ -33,7 +41,11 @@ export async function createEvent(formData: FormData) {
     .select("id")
     .single();
 
-  if (error || !data) redirect("/app/events/new?error=save");
+  if (error || !data) {
+    keepInput.set("error", "save");
+    keepInput.set("message", error?.message ?? "unknown error");
+    redirect(`/app/events/new?${keepInput}`);
+  }
 
   revalidatePath("/app");
   redirect(`/app/events/${data.id}`);
