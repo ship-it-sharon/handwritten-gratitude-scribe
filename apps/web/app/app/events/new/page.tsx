@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createEvent } from "../actions";
+import { SubmitButton } from "../../../components/SubmitButton";
 
 const OCCASIONS = [
   ["wedding", "Wedding"],
@@ -75,9 +76,7 @@ export default async function NewEventPage({
             />
           </label>
           <div>
-            <button className="button" type="submit">
-              Create event
-            </button>
+            <SubmitButton pendingLabel="Creating…">Create event</SubmitButton>
           </div>
         </form>
       </div>

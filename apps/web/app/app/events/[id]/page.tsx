@@ -6,6 +6,7 @@ import {
   addIndividualRecipient,
   removeRecipient,
 } from "../actions";
+import { SubmitButton } from "../../../components/SubmitButton";
 
 const OCCASION_LABELS: Record<string, string> = {
   wedding: "Wedding",
@@ -127,13 +128,9 @@ export default async function EventPage({
                   <form action={removeRecipient}>
                     <input type="hidden" name="recipient_id" value={row.id} />
                     <input type="hidden" name="event_id" value={event.id} />
-                    <button
-                      className="link-button"
-                      type="submit"
-                      title="Remove from this event (stays in your address book)"
-                    >
+                    <SubmitButton className="link-button" pendingLabel="removing…">
                       remove
-                    </button>
+                    </SubmitButton>
                   </form>
                 </div>
               </li>
@@ -152,9 +149,7 @@ export default async function EventPage({
             required
             placeholder="Aunt Carol"
           />
-          <button className="button" type="submit">
-            Add
-          </button>
+          <SubmitButton pendingLabel="Adding…">Add</SubmitButton>
         </form>
 
         <h2>Add a household</h2>
@@ -176,9 +171,9 @@ export default async function EventPage({
             placeholder="Members, comma-separated: Wei Chen, Lily Chen (optional)"
           />
           <div>
-            <button className="button secondary" type="submit">
+            <SubmitButton className="button secondary" pendingLabel="Adding household…">
               Add household
-            </button>
+            </SubmitButton>
           </div>
         </form>
       </div>
