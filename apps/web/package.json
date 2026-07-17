@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@radix-ui/themes": "^3.3.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.47.10",
     "next": "^15.3.0",

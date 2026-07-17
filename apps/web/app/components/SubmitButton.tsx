@@ -1,22 +1,25 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
+import { Button } from "@radix-ui/themes";
 
 // Disables itself while its form's server action is in flight, so a slow
 // save can't be double-submitted, and shows the user something happened.
 export function SubmitButton({
   children,
   pendingLabel = "Saving…",
-  className = "button",
+  variant = "solid",
+  size = "2",
 }: {
   children: React.ReactNode;
   pendingLabel?: string;
-  className?: string;
+  variant?: "solid" | "soft" | "ghost";
+  size?: "1" | "2" | "3";
 }) {
   const { pending } = useFormStatus();
   return (
-    <button className={className} type="submit" disabled={pending}>
+    <Button type="submit" disabled={pending} variant={variant} size={size}>
       {pending ? pendingLabel : children}
-    </button>
+    </Button>
   );
 }

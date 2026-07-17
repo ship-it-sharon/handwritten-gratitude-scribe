@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Flex, Text, TextField } from "@radix-ui/themes";
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -65,7 +66,6 @@ export function AddressFields({ defaults }: { defaults: Defaults }) {
           includedRegionCodes: ["us"],
         });
         element = autocomplete as unknown as HTMLElement;
-        element.style.width = "100%";
         searchBoxRef.current.appendChild(element);
         setSearchReady(true);
 
@@ -110,65 +110,69 @@ export function AddressFields({ defaults }: { defaults: Defaults }) {
   return (
     <>
       {MAPS_KEY && (
-        <label className="stack">
-          <span>Find the address</span>
+        <label>
+          <Text as="div" size="2" mb="1" weight="medium">
+            Find the address
+          </Text>
           <div ref={searchBoxRef} />
           {searchReady && (
-            <span className="muted">
+            <Text as="div" size="1" color="gray" mt="1">
               Pick a match to fill the fields below, then add any apt/unit.
-            </span>
+            </Text>
           )}
         </label>
       )}
-      <label className="stack">
-        <span>Street address</span>
-        <input
+      <label>
+        <Text as="div" size="2" mb="1" weight="medium">
+          Street address
+        </Text>
+        <TextField.Root
           ref={line1Ref}
-          className="input"
           name="line1"
           required
           placeholder="123 Oak Street"
           defaultValue={defaults.line1 ?? ""}
         />
       </label>
-      <label className="stack">
-        <span>Apt / unit (optional)</span>
-        <input
-          className="input"
-          name="line2"
-          defaultValue={defaults.line2 ?? ""}
-        />
+      <label>
+        <Text as="div" size="2" mb="1" weight="medium">
+          Apt / unit (optional)
+        </Text>
+        <TextField.Root name="line2" defaultValue={defaults.line2 ?? ""} />
       </label>
-      <label className="stack">
-        <span>City</span>
-        <input
-          className="input"
+      <label>
+        <Text as="div" size="2" mb="1" weight="medium">
+          City
+        </Text>
+        <TextField.Root
           name="city"
           required
           value={city}
           onChange={(e) => setCity(e.target.value)}
         />
       </label>
-      <div className="stack row-on-wide">
-        <label className="stack" style={{ flex: 1 }}>
-          <span>State</span>
-          <input
-            className="input"
+      <Flex gap="3">
+        <label style={{ flex: 1 }}>
+          <Text as="div" size="2" mb="1" weight="medium">
+            State
+          </Text>
+          <TextField.Root
             name="state"
             value={state}
             onChange={(e) => setState(e.target.value)}
           />
         </label>
-        <label className="stack" style={{ flex: 1 }}>
-          <span>ZIP</span>
-          <input
-            className="input"
+        <label style={{ flex: 1 }}>
+          <Text as="div" size="2" mb="1" weight="medium">
+            ZIP
+          </Text>
+          <TextField.Root
             name="postal_code"
             value={zip}
             onChange={(e) => setZip(e.target.value)}
           />
         </label>
-      </div>
+      </Flex>
     </>
   );
 }

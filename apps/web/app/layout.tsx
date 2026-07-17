@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Theme } from "@radix-ui/themes";
+import "@radix-ui/themes/styles.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,7 +14,16 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <Theme
+          accentColor="ruby"
+          grayColor="sand"
+          radius="large"
+          appearance="light"
+        >
+          {children}
+        </Theme>
+      </body>
     </html>
   );
 }

@@ -1,5 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+  Badge,
+  Button,
+  Card,
+  Flex,
+  Heading,
+  Separator,
+  Text,
+} from "@radix-ui/themes";
 import { isSupabaseConfigured } from "../../lib/supabase/config";
 import { createClient } from "../../lib/supabase/server";
 
@@ -35,48 +44,57 @@ export default async function AppHome() {
   return (
     <main className="page">
       <h1 className="wordmark">Posy</h1>
-      <p className="muted">{user.email}</p>
+      <Text as="p" size="2" color="gray">
+        {user.email}
+      </Text>
 
-      <div className="card stack">
-        <h2>Your events</h2>
-        {!events || events.length === 0 ? (
-          <p className="muted">
-            Nothing here yet. An event is the occasion you&rsquo;re saying
-            thank you for — a wedding, a shower, a birthday.
-          </p>
-        ) : (
-          <ul className="recipient-list">
-            {events.map((event) => (
-              <li key={event.id} className="recipient-row">
-                <div>
-                  <Link href={`/app/events/${event.id}`}>{event.title}</Link>
-                  <div className="muted">
-                    {OCCASION_LABELS[event.occasion_type] ?? "Occasion"}
-                    {event.event_date ? ` · ${event.event_date}` : ""}
-                  </div>
-                </div>
-                <span className="chip">
-                  {(event.event_recipients ?? []).length} recipient
-                  {(event.event_recipients ?? []).length === 1 ? "" : "s"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div>
-          <Link className="button" href="/app/events/new">
-            Create an event
-          </Link>
-        </div>
-      </div>
+      <Card size="3" mt="5">
+        <Flex direction="column" gap="4">
+          <Heading size="5">Your events</Heading>
+          {!events || events.length === 0 ? (
+            <Text as="p" color="gray">
+              Nothing here yet. An event is the occasion you&rsquo;re saying
+              thank you for — a wedding, a shower, a birthday.
+            </Text>
+          ) : (
+            <Flex direction="column">
+              {events.map((event, i) => (
+                <Flex key={event.id} direction="column">
+                  {i > 0 && <Separator size="4" my="3" />}
+                  <Flex justify="between" align="center" gap="3">
+                    <Flex direction="column">
+                      <Link href={`/app/events/${event.id}`}>
+                        <Text weight="medium">{event.title}</Text>
+                      </Link>
+                      <Text size="2" color="gray">
+                        {OCCASION_LABELS[event.occasion_type] ?? "Occasion"}
+                        {event.event_date ? ` · ${event.event_date}` : ""}
+                      </Text>
+                    </Flex>
+                    <Badge variant="soft">
+                      {(event.event_recipients ?? []).length} recipient
+                      {(event.event_recipients ?? []).length === 1 ? "" : "s"}
+                    </Badge>
+                  </Flex>
+                </Flex>
+              ))}
+            </Flex>
+          )}
+          <Flex>
+            <Button asChild>
+              <Link href="/app/events/new">Create an event</Link>
+            </Button>
+          </Flex>
+        </Flex>
+      </Card>
 
-      <div className="card stack">
+      <Card size="2" mt="4">
         <form action="/auth/signout" method="post">
-          <button className="button secondary" type="submit">
+          <Button variant="soft" color="gray" type="submit">
             Sign out
-          </button>
+          </Button>
         </form>
-      </div>
+      </Card>
     </main>
   );
 }

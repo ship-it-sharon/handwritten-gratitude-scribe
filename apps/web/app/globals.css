@@ -1,152 +1,30 @@
-:root {
-  --posy-ink: #2d2a26;
-  --posy-paper: #faf7f2;
-  --posy-accent: #b0526b;
-  --posy-accent-soft: #f3e2e7;
-  --posy-muted: #8a8378;
-}
+/* Posy brand layer on top of Radix Themes.
+   Rule of thumb (docs/DESIGN_SYSTEM.md): Radix components for UI,
+   custom CSS only for brand moments — the wordmark, paper textures,
+   and (later) rendered card previews. */
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-html,
-body {
-  min-height: 100%;
-}
-
-body {
-  background: var(--posy-paper);
-  color: var(--posy-ink);
-  font-family: Georgia, "Times New Roman", serif;
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-}
-
-a {
-  color: var(--posy-accent);
+.radix-themes {
+  /* Warm paper background + serif voice, applied through Radix tokens. */
+  --color-background: #faf7f2;
+  --default-font-family: Georgia, "Times New Roman", serif;
+  --heading-font-family: Georgia, "Times New Roman", serif;
 }
 
 .page {
-  max-width: 640px;
   margin: 0 auto;
-  padding: 4rem 1.5rem;
+  max-width: 640px;
+  padding: 3rem 1.25rem 4rem;
 }
 
 .wordmark {
+  font-family: Georgia, "Times New Roman", serif;
   font-size: 2.5rem;
+  font-weight: 700;
   letter-spacing: 0.02em;
+  line-height: 1.2;
 }
 
-.tagline {
-  color: var(--posy-muted);
-  font-size: 1.15rem;
-  margin-top: 0.5rem;
-}
-
-.card {
-  background: white;
-  border: 1px solid #eee6da;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(45, 42, 38, 0.06);
-  margin-top: 2.5rem;
-  padding: 2rem;
-}
-
-.button {
-  background: var(--posy-accent);
-  border: none;
-  border-radius: 8px;
-  color: white;
-  cursor: pointer;
-  display: inline-block;
-  font-family: inherit;
-  font-size: 1rem;
-  padding: 0.65rem 1.4rem;
-  text-decoration: none;
-}
-
-.button:disabled {
-  background: var(--posy-muted);
-  cursor: not-allowed;
-}
-
-.button.secondary {
-  background: var(--posy-accent-soft);
-  color: var(--posy-ink);
-}
-
-.input {
-  border: 1px solid #d9d0c3;
-  border-radius: 8px;
-  font-family: inherit;
-  font-size: 1rem;
-  padding: 0.65rem 0.9rem;
-  width: 100%;
-}
-
-.stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.notice {
-  background: var(--posy-accent-soft);
-  border-radius: 8px;
-  font-size: 0.95rem;
-  padding: 0.9rem 1.1rem;
-}
-
-.muted {
-  color: var(--posy-muted);
-  font-size: 0.95rem;
-}
-
-.recipient-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  list-style: none;
-}
-
-.recipient-row {
-  align-items: center;
-  border-bottom: 1px solid #f0e9dd;
-  display: flex;
-  gap: 0.75rem;
-  justify-content: space-between;
-  padding: 0.6rem 0;
-}
-
-.recipient-side {
-  align-items: center;
-  display: flex;
-  gap: 0.75rem;
-}
-
-.chip {
-  background: var(--posy-accent-soft);
-  border-radius: 999px;
-  font-size: 0.8rem;
-  padding: 0.15rem 0.7rem;
-  white-space: nowrap;
-}
-
-a.chip {
-  text-decoration: none;
-  color: inherit;
-}
-
-.checkbox-row {
-  align-items: center;
-  cursor: pointer;
-  display: flex;
-  gap: 0.6rem;
-}
-
+/* CSV import mapping table (bespoke layout, not a Radix pattern). */
 .import-table-wrap {
   overflow-x: auto;
 }
@@ -159,34 +37,14 @@ a.chip {
 
 .import-table th,
 .import-table td {
-  border-bottom: 1px solid #f0e9dd;
+  border-bottom: 1px solid var(--gray-4);
   padding: 0.4rem 0.6rem;
   text-align: left;
   vertical-align: top;
   white-space: nowrap;
 }
 
-.link-button {
-  background: none;
-  border: none;
-  color: var(--posy-muted);
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 0.85rem;
-  text-decoration: underline;
-}
-
-label.stack {
-  gap: 0.35rem;
-}
-
-.row-on-wide {
-  align-items: stretch;
-}
-
-@media (min-width: 480px) {
-  .row-on-wide {
-    align-items: center;
-    flex-direction: row;
-  }
+/* Google Places autocomplete element sizing. */
+gmp-place-autocomplete {
+  width: 100%;
 }

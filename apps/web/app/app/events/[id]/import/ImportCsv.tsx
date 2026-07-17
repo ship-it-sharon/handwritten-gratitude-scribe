@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Papa from "papaparse";
 import { useRouter } from "next/navigation";
+import { Button, Callout, Flex, Text } from "@radix-ui/themes";
 import { importCsvRecipients } from "../../actions";
 
 const FIELDS = [
@@ -95,12 +96,13 @@ export function ImportCsv({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div className="stack">
+    <Flex direction="column" gap="3">
       {headers.length === 0 ? (
-        <label className="stack">
-          <span>Choose your spreadsheet (CSV file)</span>
+        <label>
+          <Text as="div" size="2" mb="1" weight="medium">
+            Choose your spreadsheet (CSV file)
+          </Text>
           <input
-            className="input"
             type="file"
             accept=".csv,text/csv"
             onChange={(e) => {
@@ -111,19 +113,20 @@ export function ImportCsv({ eventId }: { eventId: string }) {
         </label>
       ) : (
         <>
-          <p className="muted">
+          <Text as="p" size="2" color="gray">
             {rows.length} people found. Check that each column points at the
             right thing — we took a guess:
-          </p>
+          </Text>
           <div className="import-table-wrap">
             <table className="import-table">
               <thead>
                 <tr>
                   {headers.map((header, i) => (
                     <th key={i}>
-                      <div className="muted">{header}</div>
+                      <Text as="div" size="1" color="gray">
+                        {header}
+                      </Text>
                       <select
-                        className="input"
                         value={mapping[i]}
                         onChange={(e) => {
                           const next = [...mapping];
@@ -153,22 +156,24 @@ export function ImportCsv({ eventId }: { eventId: string }) {
             </table>
           </div>
           {rows.length > 3 && (
-            <p className="muted">…and {rows.length - 3} more.</p>
+            <Text as="p" size="2" color="gray">
+              …and {rows.length - 3} more.
+            </Text>
           )}
-          <div>
-            <button
-              className="button"
-              onClick={runImport}
-              disabled={status === "importing"}
-            >
+          <Flex>
+            <Button onClick={runImport} disabled={status === "importing"}>
               {status === "importing"
                 ? `Importing ${rows.length} people…`
                 : `Import ${rows.length} people`}
-            </button>
-          </div>
+            </Button>
+          </Flex>
         </>
       )}
-      {status === "error" && <p className="notice">{message}</p>}
-    </div>
+      {status === "error" && (
+        <Callout.Root color="red">
+          <Callout.Text>{message}</Callout.Text>
+        </Callout.Root>
+      )}
+    </Flex>
   );
 }

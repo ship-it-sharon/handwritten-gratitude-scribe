@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { Card, Flex, Text } from "@radix-ui/themes";
 import { createClient } from "../../../../lib/supabase/server";
 import { saveAddress } from "../../events/actions";
 import { SubmitButton } from "../../../components/SubmitButton";
@@ -58,26 +59,34 @@ export default async function AddressPage({
 
   return (
     <main className="page">
-      <p>
+      <Text as="p" size="2">
         <Link href={backHref}>&larr; Back</Link>
-      </p>
+      </Text>
       <h1 className="wordmark">Mailing address</h1>
-      <p className="muted">for {recipientName}</p>
-      <div className="card stack">
-        <form className="stack" action={saveAddress}>
-          {contactId && (
-            <input type="hidden" name="contact_id" value={contactId} />
-          )}
-          {householdId && (
-            <input type="hidden" name="household_id" value={householdId} />
-          )}
-          {eventId && <input type="hidden" name="event_id" value={eventId} />}
-          <AddressFields defaults={address ?? {}} />
-          <div>
-            <SubmitButton pendingLabel="Saving…">Save address</SubmitButton>
-          </div>
+      <Text as="p" size="2" color="gray">
+        for {recipientName}
+      </Text>
+      <Card size="3" mt="5">
+        <form action={saveAddress}>
+          <Flex direction="column" gap="4">
+            {contactId && (
+              <input type="hidden" name="contact_id" value={contactId} />
+            )}
+            {householdId && (
+              <input type="hidden" name="household_id" value={householdId} />
+            )}
+            {eventId && (
+              <input type="hidden" name="event_id" value={eventId} />
+            )}
+            <AddressFields defaults={address ?? {}} />
+            <Flex>
+              <SubmitButton pendingLabel="Saving…" size="3">
+                Save address
+              </SubmitButton>
+            </Flex>
+          </Flex>
         </form>
-      </div>
+      </Card>
     </main>
   );
 }

@@ -33,6 +33,8 @@ apps/
   web/        Next.js (React) — primary product surface, batch flows
               (decided 2026-07-13: Next.js over Vite — Vercel-native,
               server routes for Stripe/fulfillment webhooks, SSR landing)
+              UI: Radix Themes design system (decided 2026-07-16,
+              see docs/DESIGN_SYSTEM.md)
   mobile/     React Native + Expo — camera, contacts, voice, share-sheet
 packages/
   shared/     Domain types, API client, validation, note/card models

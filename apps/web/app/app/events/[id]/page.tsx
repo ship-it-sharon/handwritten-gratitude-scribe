@@ -1,5 +1,17 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import {
+  Badge,
+  Button,
+  Callout,
+  Card,
+  Checkbox,
+  Flex,
+  Heading,
+  Separator,
+  Text,
+  TextField,
+} from "@radix-ui/themes";
 import { createClient } from "../../../../lib/supabase/server";
 import {
   addExistingRecipients,
@@ -102,7 +114,6 @@ export default async function EventPage({
     };
   });
 
-  // Address book: everyone from any event who isn't already in this one.
   const inEventContacts = new Set(
     (recipients ?? [])
       .map((r) => {
@@ -132,172 +143,204 @@ export default async function EventPage({
   const bookHouseholds = (allHouseholds ?? []).filter(
     (h) => !inEventHouseholds.has(h.id),
   );
-  // Contacts who belong to a household are represented by it; individuals
-  // stand alone.
   const bookContacts = (allContacts ?? []).filter(
     (c) =>
-      !inEventContacts.has(c.id) &&
-      (c.household_members ?? []).length === 0,
+      !inEventContacts.has(c.id) && (c.household_members ?? []).length === 0,
   );
   const hasBookCandidates = bookContacts.length + bookHouseholds.length > 0;
 
   return (
     <main className="page">
-      <p>
+      <Text as="p" size="2">
         <Link href="/app">&larr; All events</Link>
-      </p>
+      </Text>
       <h1 className="wordmark">{event.title}</h1>
-      <p className="muted">
+      <Text as="p" size="2" color="gray">
         {OCCASION_LABELS[event.occasion_type] ?? "Occasion"}
         {event.event_date ? ` · ${event.event_date}` : ""}
-      </p>
+      </Text>
 
       {imported && (
-        <p className="notice">
-          Imported {imported} {Number(imported) === 1 ? "person" : "people"}
-          {skipped && Number(skipped) > 0
-            ? ` (${skipped} rows skipped — no name found)`
-            : ""}
-          .
-        </p>
+        <Callout.Root color="grass" mt="4">
+          <Callout.Text>
+            Imported {imported} {Number(imported) === 1 ? "person" : "people"}
+            {skipped && Number(skipped) > 0
+              ? ` (${skipped} rows skipped — no name found)`
+              : ""}
+            .
+          </Callout.Text>
+        </Callout.Root>
       )}
 
-      <div className="card stack">
-        <h2>Recipients ({rows.length})</h2>
-        <p className="muted">
-          A name is enough to start a card — addresses can wait until
-          checkout.
-        </p>
+      <Card size="3" mt="5">
+        <Flex direction="column" gap="4">
+          <Heading size="5">Recipients ({rows.length})</Heading>
+          <Text as="p" size="2" color="gray">
+            A name is enough to start a card — addresses can wait until
+            checkout.
+          </Text>
 
-        {rows.length === 0 ? (
-          <p className="muted">No one yet. Add your first below.</p>
-        ) : (
-          <ul className="recipient-list">
-            {rows.map((row) => (
-              <li key={row.id} className="recipient-row">
-                <div>
-                  <div>{row.name}</div>
-                  {row.detail && <div className="muted">{row.detail}</div>}
-                </div>
-                <div className="recipient-side">
-                  {row.addressHref ? (
-                    <Link className="chip" href={row.addressHref}>
-                      {row.hasAddress ? "✓ has address" : "📮 needs address"}
-                    </Link>
-                  ) : (
-                    <span className="chip">
-                      {row.hasAddress ? "✓ has address" : "📮 needs address"}
-                    </span>
-                  )}
-                  <form action={removeRecipient}>
-                    <input type="hidden" name="recipient_id" value={row.id} />
-                    <input type="hidden" name="event_id" value={event.id} />
-                    <SubmitButton className="link-button" pendingLabel="removing…">
-                      remove
-                    </SubmitButton>
-                  </form>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+          {rows.length === 0 ? (
+            <Text as="p" color="gray">
+              No one yet. Add your first below.
+            </Text>
+          ) : (
+            <Flex direction="column">
+              {rows.map((row, i) => (
+                <Flex key={row.id} direction="column">
+                  {i > 0 && <Separator size="4" my="2" />}
+                  <Flex justify="between" align="center" gap="3">
+                    <Flex direction="column">
+                      <Text weight="medium">{row.name}</Text>
+                      {row.detail && (
+                        <Text size="2" color="gray">
+                          {row.detail}
+                        </Text>
+                      )}
+                    </Flex>
+                    <Flex align="center" gap="3">
+                      {row.addressHref ? (
+                        <Badge
+                          asChild
+                          color={row.hasAddress ? "grass" : "amber"}
+                          variant="soft"
+                        >
+                          <Link href={row.addressHref}>
+                            {row.hasAddress ? "✓ has address" : "📮 needs address"}
+                          </Link>
+                        </Badge>
+                      ) : (
+                        <Badge color="gray" variant="soft">
+                          {row.hasAddress ? "✓ has address" : "📮 needs address"}
+                        </Badge>
+                      )}
+                      <form action={removeRecipient}>
+                        <input
+                          type="hidden"
+                          name="recipient_id"
+                          value={row.id}
+                        />
+                        <input type="hidden" name="event_id" value={event.id} />
+                        <SubmitButton
+                          variant="ghost"
+                          size="1"
+                          pendingLabel="removing…"
+                        >
+                          remove
+                        </SubmitButton>
+                      </form>
+                    </Flex>
+                  </Flex>
+                </Flex>
+              ))}
+            </Flex>
+          )}
+        </Flex>
+      </Card>
 
       {hasBookCandidates && (
-        <div className="card stack">
-          <h2>Add from your address book</h2>
-          <p className="muted">
-            People and households from your other events.
-          </p>
-          <form className="stack" action={addExistingRecipients}>
-            <input type="hidden" name="event_id" value={event.id} />
-            <ul className="recipient-list">
-              {bookHouseholds.map((h) => (
-                <li key={h.id} className="recipient-row">
-                  <label className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      name="household_ids"
-                      value={h.id}
-                    />
-                    <span>
-                      {h.name} <span className="muted">· household</span>
-                    </span>
-                  </label>
-                </li>
-              ))}
-              {bookContacts.map((c) => (
-                <li key={c.id} className="recipient-row">
-                  <label className="checkbox-row">
-                    <input type="checkbox" name="contact_ids" value={c.id} />
-                    <span>{c.full_name}</span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-            <div>
-              <SubmitButton
-                className="button secondary"
-                pendingLabel="Adding…"
-              >
-                Add selected
-              </SubmitButton>
-            </div>
-          </form>
-        </div>
+        <Card size="3" mt="4">
+          <Flex direction="column" gap="4">
+            <Heading size="5">Add from your address book</Heading>
+            <Text as="p" size="2" color="gray">
+              People and households from your other events.
+            </Text>
+            <form action={addExistingRecipients}>
+              <Flex direction="column" gap="3">
+                <input type="hidden" name="event_id" value={event.id} />
+                {bookHouseholds.map((h) => (
+                  <Text as="label" key={h.id} size="2">
+                    <Flex gap="2" align="center">
+                      <Checkbox name="household_ids" value={h.id} />
+                      <span>
+                        {h.name}{" "}
+                        <Text color="gray" size="1">
+                          · household
+                        </Text>
+                      </span>
+                    </Flex>
+                  </Text>
+                ))}
+                {bookContacts.map((c) => (
+                  <Text as="label" key={c.id} size="2">
+                    <Flex gap="2" align="center">
+                      <Checkbox name="contact_ids" value={c.id} />
+                      <span>{c.full_name}</span>
+                    </Flex>
+                  </Text>
+                ))}
+                <Flex>
+                  <SubmitButton variant="soft" pendingLabel="Adding…">
+                    Add selected
+                  </SubmitButton>
+                </Flex>
+              </Flex>
+            </form>
+          </Flex>
+        </Card>
       )}
 
-      <div className="card stack">
-        <h2>Bring in a whole list</h2>
-        <p className="muted">
-          Got a spreadsheet — a guest list, a registry export? Import
-          everyone at once.
-        </p>
-        <div>
-          <Link className="button secondary" href={`/app/events/${event.id}/import`}>
-            Import from CSV
-          </Link>
-        </div>
-      </div>
+      <Card size="3" mt="4">
+        <Flex direction="column" gap="4">
+          <Heading size="5">Bring in a whole list</Heading>
+          <Text as="p" size="2" color="gray">
+            Got a spreadsheet — a guest list, a registry export? Import
+            everyone at once.
+          </Text>
+          <Flex>
+            <Button asChild variant="soft">
+              <Link href={`/app/events/${event.id}/import`}>
+                Import from CSV
+              </Link>
+            </Button>
+          </Flex>
+        </Flex>
+      </Card>
 
-      <div className="card stack">
-        <h2>Add a person</h2>
-        <form className="stack row-on-wide" action={addIndividualRecipient}>
-          <input type="hidden" name="event_id" value={event.id} />
-          <input
-            className="input"
-            name="full_name"
-            required
-            placeholder="Aunt Carol"
-          />
-          <SubmitButton pendingLabel="Adding…">Add</SubmitButton>
-        </form>
+      <Card size="3" mt="4">
+        <Flex direction="column" gap="4">
+          <Heading size="5">Add a person</Heading>
+          <form action={addIndividualRecipient}>
+            <Flex gap="3" align="center">
+              <input type="hidden" name="event_id" value={event.id} />
+              <TextField.Root
+                name="full_name"
+                required
+                placeholder="Aunt Carol"
+                style={{ flex: 1 }}
+              />
+              <SubmitButton pendingLabel="Adding…">Add</SubmitButton>
+            </Flex>
+          </form>
 
-        <h2>Add a household</h2>
-        <p className="muted">
-          One card for the whole family — members are remembered
-          individually.
-        </p>
-        <form className="stack" action={addHouseholdRecipient}>
-          <input type="hidden" name="event_id" value={event.id} />
-          <input
-            className="input"
-            name="household_name"
-            required
-            placeholder="The Chens"
-          />
-          <input
-            className="input"
-            name="member_names"
-            placeholder="Members, comma-separated: Wei Chen, Lily Chen (optional)"
-          />
-          <div>
-            <SubmitButton className="button secondary" pendingLabel="Adding household…">
-              Add household
-            </SubmitButton>
-          </div>
-        </form>
-      </div>
+          <Separator size="4" />
+
+          <Heading size="5">Add a household</Heading>
+          <Text as="p" size="2" color="gray">
+            One card for the whole family — members are remembered
+            individually.
+          </Text>
+          <form action={addHouseholdRecipient}>
+            <Flex direction="column" gap="3">
+              <input type="hidden" name="event_id" value={event.id} />
+              <TextField.Root
+                name="household_name"
+                required
+                placeholder="The Chens"
+              />
+              <TextField.Root
+                name="member_names"
+                placeholder="Members, comma-separated: Wei Chen, Lily Chen (optional)"
+              />
+              <Flex>
+                <SubmitButton variant="soft" pendingLabel="Adding household…">
+                  Add household
+                </SubmitButton>
+              </Flex>
+            </Flex>
+          </form>
+        </Flex>
+      </Card>
     </main>
   );
 }
