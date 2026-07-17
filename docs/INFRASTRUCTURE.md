@@ -49,7 +49,8 @@ else under the @posy identity._
 5. **PostHog** — analytics/flags/experiments; wire in during M0 so
    funnel data exists from the first preview.
 6. **Google Maps Platform key** (Places autocomplete on address forms) —
-   in the existing Posy Google Cloud project: enable **Places API**,
+   in the existing Posy Google Cloud project: enable **Places API (New)**
+   (the legacy "Places API" is deprecated and closed to new projects),
    create an **API key** (Credentials → Create credentials → API key),
    restrict it to the posy websites (Application restrictions →
    Websites → add `posy-dev.vercel.app`, `*.vercel.app` preview

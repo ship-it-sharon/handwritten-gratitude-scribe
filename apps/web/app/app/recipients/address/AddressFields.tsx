@@ -11,13 +11,13 @@ declare global {
 }
 
 function loadGoogleMaps(key: string): Promise<void> {
-  if (typeof google !== "undefined" && google.maps?.places) {
+  if (typeof google !== "undefined" && google.maps) {
     return Promise.resolve();
   }
   if (!window.__posyMapsLoader) {
     window.__posyMapsLoader = new Promise((resolve, reject) => {
       const script = document.createElement("script");
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&loading=async`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async`;
       script.async = true;
       script.onload = () => resolve();
       script.onerror = () => reject(new Error("maps failed to load"));
@@ -35,56 +35,91 @@ type Defaults = {
   postal_code?: string | null;
 };
 
-// Address inputs for the saveAddress form. When a Google Maps key is
-// configured, line1 becomes a Places autocomplete: picking a suggestion
-// fills street/city/state/zip. Apt/unit is never touched by autocomplete
-// (suggestions don't carry unit numbers) and every field stays hand-
-// editable after a pick.
+// Address inputs for the saveAddress form. With a Google Maps key
+// configured, a Places (New) autocomplete search box appears above the
+// fields: picking a suggestion fills street/city/state/zip. Apt/unit is
+// never autofilled (suggestions don't carry unit numbers) and every
+// field stays hand-editable after a pick. Without the key, it's just
+// the plain form.
 export function AddressFields({ defaults }: { defaults: Defaults }) {
+  const searchBoxRef = useRef<HTMLDivElement>(null);
   const line1Ref = useRef<HTMLInputElement>(null);
   const [city, setCity] = useState(defaults.city ?? "");
   const [state, setState] = useState(defaults.state ?? "");
   const [zip, setZip] = useState(defaults.postal_code ?? "");
+  const [searchReady, setSearchReady] = useState(false);
 
   useEffect(() => {
-    if (!MAPS_KEY || !line1Ref.current) return;
-    let autocomplete: google.maps.places.Autocomplete | undefined;
+    if (!MAPS_KEY || !searchBoxRef.current) return;
+    let element: HTMLElement | undefined;
+    let cancelled = false;
 
     loadGoogleMaps(MAPS_KEY)
-      .then(() => {
-        if (!line1Ref.current) return;
-        autocomplete = new google.maps.places.Autocomplete(line1Ref.current, {
-          types: ["address"],
-          componentRestrictions: { country: "us" },
-          fields: ["address_components"],
+      .then(async () => {
+        const places = (await google.maps.importLibrary(
+          "places",
+        )) as google.maps.PlacesLibrary;
+        if (cancelled || !searchBoxRef.current) return;
+
+        const autocomplete = new places.PlaceAutocompleteElement({
+          includedRegionCodes: ["us"],
         });
-        autocomplete.addListener("place_changed", () => {
-          const components = autocomplete?.getPlace()?.address_components;
-          if (!components) return;
+        element = autocomplete as unknown as HTMLElement;
+        element.style.width = "100%";
+        searchBoxRef.current.appendChild(element);
+        setSearchReady(true);
+
+        const onSelect = async (event: Event) => {
+          const e = event as Event & {
+            placePrediction?: { toPlace(): google.maps.places.Place };
+            place?: google.maps.places.Place;
+          };
+          const place = e.placePrediction?.toPlace() ?? e.place;
+          if (!place) return;
+          await place.fetchFields({ fields: ["addressComponents"] });
+          const components = place.addressComponents ?? [];
           const part = (type: string, short = false) => {
             const c = components.find((component) =>
               component.types.includes(type),
             );
-            return c ? (short ? c.short_name : c.long_name) : "";
+            return c ? ((short ? c.shortText : c.longText) ?? "") : "";
           };
           const street = `${part("street_number")} ${part("route")}`.trim();
           if (line1Ref.current && street) line1Ref.current.value = street;
-          setCity(part("locality") || part("sublocality") || part("postal_town"));
+          setCity(
+            part("locality") || part("sublocality") || part("postal_town"),
+          );
           setState(part("administrative_area_level_1", true));
           setZip(part("postal_code"));
-        });
+        };
+
+        // Event name differs across Places (New) element versions.
+        element.addEventListener("gmp-select", onSelect);
+        element.addEventListener("gmp-placeselect", onSelect);
       })
       .catch(() => {
         // Autocomplete is an enhancement; the plain form keeps working.
       });
 
     return () => {
-      if (autocomplete) google.maps.event.clearInstanceListeners(autocomplete);
+      cancelled = true;
+      element?.remove();
     };
   }, []);
 
   return (
     <>
+      {MAPS_KEY && (
+        <label className="stack">
+          <span>Find the address</span>
+          <div ref={searchBoxRef} />
+          {searchReady && (
+            <span className="muted">
+              Pick a match to fill the fields below, then add any apt/unit.
+            </span>
+          )}
+        </label>
+      )}
       <label className="stack">
         <span>Street address</span>
         <input
@@ -92,11 +127,8 @@ export function AddressFields({ defaults }: { defaults: Defaults }) {
           className="input"
           name="line1"
           required
-          placeholder={
-            MAPS_KEY ? "Start typing an address…" : "123 Oak Street"
-          }
+          placeholder="123 Oak Street"
           defaultValue={defaults.line1 ?? ""}
-          autoComplete="off"
         />
       </label>
       <label className="stack">
