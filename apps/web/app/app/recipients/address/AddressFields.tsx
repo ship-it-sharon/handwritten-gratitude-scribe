@@ -36,103 +36,179 @@ type Defaults = {
   postal_code?: string | null;
 };
 
-// Address inputs for the saveAddress form. With a Google Maps key
-// configured, a Places (New) autocomplete search box appears above the
-// fields: picking a suggestion fills street/city/state/zip. Apt/unit is
-// never autofilled (suggestions don't carry unit numbers) and every
-// field stays hand-editable after a pick. Without the key, it's just
-// the plain form.
+type Suggestion = {
+  id: string;
+  main: string;
+  secondary: string;
+  prediction: google.maps.places.PlacePrediction;
+};
+
+// Address inputs for the saveAddress form. The street field itself
+// suggests addresses as you type (Places API New, via our own dropdown —
+// no separate search box, no opt-in). Picking a suggestion fills
+// street/city/state/zip; apt/unit is never autofilled; every field stays
+// hand-editable. If Maps fails to load, it's simply a plain form.
 export function AddressFields({ defaults }: { defaults: Defaults }) {
-  const searchBoxRef = useRef<HTMLDivElement>(null);
-  const line1Ref = useRef<HTMLInputElement>(null);
+  const [line1, setLine1] = useState(defaults.line1 ?? "");
   const [city, setCity] = useState(defaults.city ?? "");
   const [state, setState] = useState(defaults.state ?? "");
   const [zip, setZip] = useState(defaults.postal_code ?? "");
-  const [searchReady, setSearchReady] = useState(false);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [mapsReady, setMapsReady] = useState(false);
+
+  const sessionTokenRef =
+    useRef<google.maps.places.AutocompleteSessionToken | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestQueryRef = useRef("");
 
   useEffect(() => {
-    if (!MAPS_KEY || !searchBoxRef.current) return;
-    let element: HTMLElement | undefined;
+    if (!MAPS_KEY) return;
     let cancelled = false;
-
     loadGoogleMaps(MAPS_KEY)
       .then(async () => {
-        const places = (await google.maps.importLibrary(
-          "places",
-        )) as google.maps.PlacesLibrary;
-        if (cancelled || !searchBoxRef.current) return;
-
-        const autocomplete = new places.PlaceAutocompleteElement({
-          includedRegionCodes: ["us"],
-        });
-        element = autocomplete as unknown as HTMLElement;
-        searchBoxRef.current.appendChild(element);
-        setSearchReady(true);
-
-        const onSelect = async (event: Event) => {
-          const e = event as Event & {
-            placePrediction?: { toPlace(): google.maps.places.Place };
-            place?: google.maps.places.Place;
-          };
-          const place = e.placePrediction?.toPlace() ?? e.place;
-          if (!place) return;
-          await place.fetchFields({ fields: ["addressComponents"] });
-          const components = place.addressComponents ?? [];
-          const part = (type: string, short = false) => {
-            const c = components.find((component) =>
-              component.types.includes(type),
-            );
-            return c ? ((short ? c.shortText : c.longText) ?? "") : "";
-          };
-          const street = `${part("street_number")} ${part("route")}`.trim();
-          if (line1Ref.current && street) line1Ref.current.value = street;
-          setCity(
-            part("locality") || part("sublocality") || part("postal_town"),
-          );
-          setState(part("administrative_area_level_1", true));
-          setZip(part("postal_code"));
-        };
-
-        // Event name differs across Places (New) element versions.
-        element.addEventListener("gmp-select", onSelect);
-        element.addEventListener("gmp-placeselect", onSelect);
+        await google.maps.importLibrary("places");
+        if (!cancelled) setMapsReady(true);
       })
       .catch(() => {
         // Autocomplete is an enhancement; the plain form keeps working.
       });
-
     return () => {
       cancelled = true;
-      element?.remove();
     };
   }, []);
 
+  function onLine1Change(value: string) {
+    setLine1(value);
+    latestQueryRef.current = value;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!mapsReady || value.trim().length < 3) {
+      setSuggestions([]);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        if (!sessionTokenRef.current) {
+          sessionTokenRef.current =
+            new google.maps.places.AutocompleteSessionToken();
+        }
+        const { suggestions: results } =
+          await google.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions(
+            {
+              input: value,
+              sessionToken: sessionTokenRef.current,
+              includedRegionCodes: ["us"],
+            },
+          );
+        // A slower response for an older query must not clobber newer input.
+        if (latestQueryRef.current !== value) return;
+        setSuggestions(
+          results
+            .map((s) => s.placePrediction)
+            .filter((p): p is google.maps.places.PlacePrediction => !!p)
+            .slice(0, 5)
+            .map((p) => ({
+              id: p.placeId,
+              main: p.mainText?.text ?? p.text.text,
+              secondary: p.secondaryText?.text ?? "",
+              prediction: p,
+            })),
+        );
+      } catch {
+        setSuggestions([]);
+      }
+    }, 250);
+  }
+
+  async function pick(suggestion: Suggestion) {
+    setSuggestions([]);
+    try {
+      const place = suggestion.prediction.toPlace();
+      await place.fetchFields({ fields: ["addressComponents"] });
+      const components = place.addressComponents ?? [];
+      const part = (type: string, short = false) => {
+        const c = components.find((component) =>
+          component.types.includes(type),
+        );
+        return c ? ((short ? c.shortText : c.longText) ?? "") : "";
+      };
+      const street = `${part("street_number")} ${part("route")}`.trim();
+      setLine1(street || suggestion.main);
+      setCity(part("locality") || part("sublocality") || part("postal_town"));
+      setState(part("administrative_area_level_1", true));
+      setZip(part("postal_code"));
+    } catch {
+      setLine1(suggestion.main);
+    } finally {
+      // A pick ends the billing session; the next keystroke starts fresh.
+      sessionTokenRef.current = null;
+    }
+  }
+
   return (
     <>
-      {MAPS_KEY && (
-        <label>
-          <Text as="div" size="2" mb="1" weight="medium">
-            Find the address
-          </Text>
-          <div ref={searchBoxRef} />
-          {searchReady && (
-            <Text as="div" size="1" color="gray" mt="1">
-              Pick a match to fill the fields below, then add any apt/unit.
-            </Text>
-          )}
-        </label>
-      )}
-      <label>
+      <label style={{ position: "relative", display: "block" }}>
         <Text as="div" size="2" mb="1" weight="medium">
           Street address
         </Text>
         <TextField.Root
-          ref={line1Ref}
           name="line1"
           required
-          placeholder="123 Oak Street"
-          defaultValue={defaults.line1 ?? ""}
+          placeholder="Start typing the address…"
+          value={line1}
+          onChange={(e) => onLine1Change(e.target.value)}
+          onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+          autoComplete="off"
         />
+        {suggestions.length > 0 && (
+          <div
+            style={{
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              right: 0,
+              zIndex: 10,
+              marginTop: 4,
+              background: "white",
+              border: "1px solid var(--gray-5)",
+              borderRadius: "var(--radius-3)",
+              boxShadow: "var(--shadow-4)",
+              overflow: "hidden",
+            }}
+          >
+            {suggestions.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pick(s);
+                }}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "0.5rem 0.75rem",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  font: "inherit",
+                }}
+                onMouseEnter={(e) => {
+                  (e.target as HTMLElement).style.background =
+                    "var(--gray-3)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.target as HTMLElement).style.background = "none";
+                }}
+              >
+                <Text size="2">{s.main}</Text>{" "}
+                <Text size="1" color="gray">
+                  {s.secondary}
+                </Text>
+              </button>
+            ))}
+          </div>
+        )}
       </label>
       <label>
         <Text as="div" size="2" mb="1" weight="medium">

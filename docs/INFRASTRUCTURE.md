@@ -50,7 +50,10 @@ else under the @posy identity._
    funnel data exists from the first preview.
 6. **Google Maps Platform key** (Places autocomplete on address forms) —
    in the existing Posy Google Cloud project: enable **Places API (New)**
-   (the legacy "Places API" is deprecated and closed to new projects),
+   AND **Maps JavaScript API** (the browser loader ships through the
+   latter; the key's API restrictions must allow BOTH). The legacy
+   "Places API" is deprecated and closed to new projects — skip it.
+   Then
    create an **API key** (Credentials → Create credentials → API key),
    restrict it to the posy websites (Application restrictions →
    Websites → add `posy-dev.vercel.app`, `*.vercel.app` preview
