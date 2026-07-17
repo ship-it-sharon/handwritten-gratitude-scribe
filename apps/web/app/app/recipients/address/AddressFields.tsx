@@ -5,27 +5,54 @@ import { Flex, Text, TextField } from "@radix-ui/themes";
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-declare global {
-  interface Window {
-    __posyMapsLoader?: Promise<void>;
-  }
-}
+// Google's official dynamic-load pattern: install a queuing
+// `google.maps.importLibrary` immediately; the real script (loaded on
+// first use, with a callback that resolves the queue) replaces it.
+// A plain <script> tag does NOT provide importLibrary — that was the
+// "importLibrary is not a function" failure.
+function bootstrapGoogleMaps(key: string) {
+  const w = window as unknown as {
+    google?: { maps?: Record<string, unknown> };
+  };
+  w.google = w.google ?? {};
+  w.google.maps = w.google.maps ?? {};
+  const maps = w.google.maps as {
+    importLibrary?: (name: string) => Promise<unknown>;
+    __posyBootResolve__?: () => void;
+  };
+  if (maps.importLibrary) return;
 
-function loadGoogleMaps(key: string): Promise<void> {
-  if (typeof google !== "undefined" && google.maps) {
-    return Promise.resolve();
-  }
-  if (!window.__posyMapsLoader) {
-    window.__posyMapsLoader = new Promise((resolve, reject) => {
+  let scriptPromise: Promise<void> | undefined;
+  const requested = new Set<string>();
+
+  const loadScript = () =>
+    (scriptPromise ??= new Promise<void>((resolve, reject) => {
+      maps.__posyBootResolve__ = resolve;
+      const params = new URLSearchParams({
+        key,
+        v: "weekly",
+        libraries: [...requested].join(","),
+        callback: "google.maps.__posyBootResolve__",
+      });
       const script = document.createElement("script");
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&loading=async`;
+      script.src = `https://maps.googleapis.com/maps/api/js?${params}`;
       script.async = true;
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error("maps failed to load"));
+      script.onerror = () =>
+        reject(new Error("Google Maps script could not load"));
       document.head.appendChild(script);
+    }));
+
+  const queuingImportLibrary = (name: string) => {
+    requested.add(name);
+    return loadScript().then(() => {
+      const real = maps.importLibrary as (name: string) => Promise<unknown>;
+      if (real === queuingImportLibrary) {
+        throw new Error("Google Maps loaded but importLibrary is missing");
+      }
+      return real(name);
     });
-  }
-  return window.__posyMapsLoader;
+  };
+  maps.importLibrary = queuingImportLibrary;
 }
 
 type Defaults = {
@@ -65,9 +92,10 @@ export function AddressFields({ defaults }: { defaults: Defaults }) {
   useEffect(() => {
     if (!MAPS_KEY) return;
     let cancelled = false;
-    loadGoogleMaps(MAPS_KEY)
-      .then(async () => {
-        await google.maps.importLibrary("places");
+    bootstrapGoogleMaps(MAPS_KEY);
+    google.maps
+      .importLibrary("places")
+      .then(() => {
         if (!cancelled) setMapsReady(true);
       })
       .catch((error) => {
