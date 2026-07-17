@@ -55,6 +55,7 @@ export function AddressFields({ defaults }: { defaults: Defaults }) {
   const [zip, setZip] = useState(defaults.postal_code ?? "");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [mapsReady, setMapsReady] = useState(false);
+  const [diagnostic, setDiagnostic] = useState("");
 
   const sessionTokenRef =
     useRef<google.maps.places.AutocompleteSessionToken | null>(null);
@@ -69,8 +70,16 @@ export function AddressFields({ defaults }: { defaults: Defaults }) {
         await google.maps.importLibrary("places");
         if (!cancelled) setMapsReady(true);
       })
-      .catch(() => {
-        // Autocomplete is an enhancement; the plain form keeps working.
+      .catch((error) => {
+        // Autocomplete is an enhancement; the plain form keeps working —
+        // but say why, so misconfiguration isn't invisible.
+        console.error("Posy address autocomplete:", error);
+        if (!cancelled)
+          setDiagnostic(
+            `Address suggestions unavailable — Google Maps failed to load (${
+              error?.message ?? "unknown error"
+            }). Check that the key allows this website and the Maps JavaScript API.`,
+          );
       });
     return () => {
       cancelled = true;
@@ -101,6 +110,7 @@ export function AddressFields({ defaults }: { defaults: Defaults }) {
           );
         // A slower response for an older query must not clobber newer input.
         if (latestQueryRef.current !== value) return;
+        setDiagnostic("");
         setSuggestions(
           results
             .map((s) => s.placePrediction)
@@ -113,8 +123,14 @@ export function AddressFields({ defaults }: { defaults: Defaults }) {
               prediction: p,
             })),
         );
-      } catch {
+      } catch (error) {
+        console.error("Posy address autocomplete:", error);
         setSuggestions([]);
+        setDiagnostic(
+          `Address suggestions unavailable — ${
+            (error as Error)?.message ?? "lookup failed"
+          }`,
+        );
       }
     }, 250);
   }
@@ -208,6 +224,11 @@ export function AddressFields({ defaults }: { defaults: Defaults }) {
               </button>
             ))}
           </div>
+        )}
+        {diagnostic && (
+          <Text as="div" size="1" color="amber" mt="1">
+            {diagnostic}
+          </Text>
         )}
       </label>
       <label>
