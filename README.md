@@ -26,4 +26,11 @@ eventually the gift — for you.
 - [Backlog](docs/BACKLOG.md) — deferred work, parked decisions, import-sources roadmap
 - [Infrastructure](docs/INFRASTRUCTURE.md) — hosting/domain/services shopping list, costs, setup order
 
-No code yet — planning first, on purpose.
+## Code
+
+- `apps/web` — the Next.js app (Radix Themes UI), deployed on Vercel
+- `packages/shared` — domain types shared with the future mobile app
+- `supabase/migrations` — the database, RLS-first
+
+Docs before code, on purpose — the planning docs above are the source
+of truth for what gets built and why.
